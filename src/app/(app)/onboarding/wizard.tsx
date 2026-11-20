@@ -2,11 +2,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Camera, CheckCircle2, ChevronLeft, ChevronRight, IdCard, Landmark, RefreshCw, ShieldCheck } from "lucide-react";
+import { Camera, CheckCircle2, ChevronLeft, ChevronRight, Globe, IdCard, Landmark, RefreshCw, ShieldCheck } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { Alert, Button, Field, Input, LinkButton, Panel, Select } from "@/components/ui";
-import { CopyButton } from "@/components/client-bits";
+import { CopyButton, Modal } from "@/components/client-bits";
 
 type Init = {
   country: string; phone: string; kycStatus: string; hasProfile: boolean;
@@ -29,6 +29,8 @@ export function KycWizard({ initial }: { initial: Init }) {
   const [error, setError] = useState<string | null>(step === 2 && initial.verification?.reason ? initial.verification.reason : null);
   const [loading, setLoading] = useState(false);
   const [account, setAccount] = useState(initial.account);
+  const [region, setRegion] = useState<"NG" | "INTL">("NG");
+  const [approvedNow, setApprovedNow] = useState(false);
 
   async function run(fn: () => Promise<void>) {
     setLoading(true); setError(null);
@@ -76,21 +78,35 @@ export function KycWizard({ initial }: { initial: Init }) {
             if (!r.ok) throw new ApiError(422, r.reason || "We couldn't verify that number");
             setVerificationId(r.verificationId); setStep(2);
           }); }}>
-            <div><h2 className="text-2xl">Identity Verification</h2><p className="mt-1 text-[15px] text-muted">Choose one. You don't need to provide both.</p></div>
+            <div><h2 className="text-2xl">Identity Verification</h2><p className="mt-1 text-[15px] text-muted">Choose where your identity document was issued.</p></div>
             <fieldset className="grid grid-cols-2 gap-3">
-              <legend className="sr-only">Identity type</legend>
+              <legend className="sr-only">Identity region</legend>
+              {([["NG", "Nigeria Identity", "BVN or NIN", Landmark], ["INTL", "International ID", "Passport or national ID", Globe]] as const).map(([k, t, d, Icon]) => (
+                <label key={k} className={clsx("flex cursor-pointer items-center gap-3 rounded-2xl border p-3.5", region === k ? "border-brand bg-brand-50" : "border-line")}>
+                  <input type="radio" name="region" checked={region === k} onChange={() => setRegion(k)} className="sr-only" />
+                  <span className={clsx("grid size-10 place-items-center rounded-full", region === k ? "bg-brand text-white" : "bg-panel text-muted")}><Icon size={18} /></span>
+                  <span><span className="block font-medium">{t}</span><span className="text-xs text-muted">{d}</span></span>
+                </label>
+              ))}
+            </fieldset>
+            {region === "INTL" ? (
+              <Alert tone="info">International ID verification isn&apos;t available yet. PaySplit currently serves Nigerian residents; an international provider plugs into the same verification flow when it launches.</Alert>
+            ) : (
+            <>
+            <fieldset className="flex gap-2">
+              <legend className="mb-2 text-sm">ID type</legend>
               {(["BVN", "NIN"] as const).map((t) => (
-                <label key={t} className={clsx("flex cursor-pointer items-center gap-3 rounded-2xl border p-3.5", idType === t ? "border-brand bg-brand-50" : "border-line")}>
-                  <span className={clsx("grid size-10 place-items-center rounded-full", idType === t ? "bg-brand text-white" : "bg-panel text-muted")}>{t === "BVN" ? <Landmark size={18} /> : <IdCard size={18} />}</span>
-                  <input type="radio" name="idType" value={t} checked={idType === t} onChange={() => setIdType(t)} className="sr-only" />
-                  <span><span className="block font-medium">{t}</span><span className="text-xs text-muted">{t === "BVN" ? "Bank Verification Number" : "National Identification Number"}</span></span>
+                <label key={t} className={clsx("cursor-pointer rounded-lg border px-4 py-2 text-sm", idType === t ? "border-brand bg-brand-50 text-ink" : "border-line text-muted")} title={t === "BVN" ? "Bank Verification Number" : "National Identification Number"}>
+                  <input type="radio" name="idType" value={t} checked={idType === t} onChange={() => setIdType(t)} className="sr-only" />{t === "BVN" ? "BVN · Bank Verification Number" : "NIN · National ID Number"}
                 </label>
               ))}
             </fieldset>
             <Field id="idNumber" label={idType} hint="11 digits. Sandbox test values: BVN 22222222222 · NIN 70123456789">
               <Input id="idNumber" inputMode="numeric" autoComplete="off" maxLength={11} value={idNumber} onChange={(e) => setIdNumber(e.target.value.replace(/\D/g, ""))} required aria-describedby="idNumber-hint" />
             </Field>
-            <Button type="submit" size="lg" className="mt-auto h-[60px]" loading={loading} disabled={idNumber.length !== 11}>Continue</Button>
+            </>
+            )}
+            <Button type="submit" size="lg" className="mt-auto h-[60px]" loading={loading} disabled={region !== "NG" || idNumber.length !== 11}>Continue</Button>
           </form>
         )}
 
@@ -101,7 +117,7 @@ export function KycWizard({ initial }: { initial: Init }) {
             onSubmit={(selfie, id) => run(async () => {
               const r = await api<{ ok: boolean; reason?: string; account: Init["account"] }>("/api/kyc/liveness", { body: { verificationId, idNumber: id || idNumber, selfie } });
               if (!r.ok) throw new ApiError(422, r.reason || "Liveness check failed — please retake");
-              setAccount(r.account); setStep(3); router.refresh();
+              setAccount(r.account); setStep(3); setApprovedNow(true); router.refresh();
             })}
           />
         )}
@@ -125,6 +141,10 @@ export function KycWizard({ initial }: { initial: Init }) {
         </div>
         </div>
       </section>
+      <Modal open={approvedNow} onClose={() => setApprovedNow(false)} size="sm" title="Identity Approved" description={`Your ${idType} and liveness check have been authenticated by the provider.`} icon={<ShieldCheck size={20} className="text-success" />}
+        footer={<Button size="lg" className="h-[60px]" onClick={() => setApprovedNow(false)}>Continue</Button>}>
+        <div className="grid place-items-center rounded-2xl bg-gradient-to-b from-success-50 to-white py-8"><span className="grid size-[110px] place-items-center rounded-full bg-white shadow-[0_12px_32px_rgba(17,176,30,0.2)]"><ShieldCheck size={52} className="text-success" /></span></div>
+      </Modal>
     </Panel>
   );
 }

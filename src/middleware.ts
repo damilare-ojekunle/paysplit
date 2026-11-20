@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 // Coarse gate on cookie presence; every page and API route still validates the session server-side.
-const PUBLIC = ["/login", "/register", "/verify-email", "/forgot-password", "/reset-password", "/admin/login"];
+const PUBLIC = ["/login", "/register", "/verify-email", "/forgot-password", "/reset-password", "/admin/login", "/terms", "/privacy"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;

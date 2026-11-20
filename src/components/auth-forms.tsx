@@ -75,6 +75,7 @@ export function RegisterForm() {
   const router = useRouter();
   const f = useForm();
   const [v, setV] = useState({ firstName: "", lastName: "", email: "", password: "", confirmPassword: "" });
+  const [terms, setTerms] = useState(false);
   const set = (k: keyof typeof v) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value });
   const rules = [
     { ok: v.password.length >= 8, label: "8+ characters" },
@@ -83,7 +84,7 @@ export function RegisterForm() {
     { ok: /\d/.test(v.password), label: "Number" },
   ];
   const mismatch = v.confirmPassword.length > 0 && v.confirmPassword !== v.password;
-  const submit = (e: FormEvent) => { e.preventDefault(); if (mismatch) return f.setError("Passwords do not match"); f.run(async () => { await api("/api/auth/register", { body: v }); router.push("/verify-email"); router.refresh(); }); };
+  const submit = (e: FormEvent) => { e.preventDefault(); if (mismatch) return f.setError("Passwords do not match"); f.run(async () => { await api("/api/auth/register", { body: { ...v, acceptTerms: terms } }); router.push("/verify-email"); router.refresh(); }); };
   return (
     <form onSubmit={submit} className="space-y-4" noValidate>
       <Head title="Create an account" sub="Start splitting your salary automatically. You'll verify your email next." />
@@ -100,8 +101,12 @@ export function RegisterForm() {
       <Field id="confirmPassword" label="Confirm password" error={mismatch ? "Passwords do not match" : undefined}>
         <Input id="confirmPassword" type="password" value={v.confirmPassword} onChange={set("confirmPassword")} autoComplete="new-password" required aria-invalid={mismatch} />
       </Field>
+      <label className="flex items-start gap-3 text-sm text-muted">
+        <input type="checkbox" className="mt-0.5 size-4 shrink-0 accent-brand" checked={terms} onChange={(e) => setTerms(e.target.checked)} required />
+        <span>I agree to the <a href="/terms" className="text-brand underline">Terms of Use</a>, acknowledge the <a href="/privacy" className="text-brand underline">Privacy Policy</a> and confirm I&apos;m at least 18 years old.</span>
+      </label>
       <Divider />
-      <Button type="submit" size="lg" className="h-[60px]" loading={f.loading} disabled={!rules.every((r) => r.ok)}>Create account</Button>
+      <Button type="submit" size="lg" className="h-[60px]" loading={f.loading} disabled={!rules.every((r) => r.ok) || !terms}>Create account</Button>
       <p className="text-center text-[15px] text-muted">Already have an account? <Link href="/login" className="font-medium text-brand hover:underline">Sign in</Link></p>
     </form>
   );

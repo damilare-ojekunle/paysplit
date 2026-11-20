@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Check, ClipboardList, Landmark, Split, Wallet } from "lucide-react";
+import { Check, ClipboardList, Landmark, ShieldCheck, Split, Wallet } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
 import { Alert, Button, Field, Input, Select } from "./ui";
@@ -161,6 +161,43 @@ export function SetupWizard({ steps, salaryDay }: { steps: Steps; salaryDay: num
             </div>
           </form>
         </div>
+      )}
+    </dialog>
+  );
+}
+
+/** First-visit pop-up (Figma "Modal" 6026:26835): the two stages of getting started. */
+export function GettingStarted() {
+  const ref = useRef<HTMLDialogElement>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => { let seen = false; try { seen = localStorage.getItem("ps-welcome") === "1"; } catch {} if (!seen) setOpen(true); }, []);
+  useEffect(() => { const d = ref.current; if (!d) return; if (open && !d.open) d.showModal(); if (!open && d.open) d.close(); }, [open]);
+  const close = () => { try { localStorage.setItem("ps-welcome", "1"); } catch {} setOpen(false); };
+  return (
+    <dialog ref={ref} onClose={close} aria-labelledby="welcome-title" className="m-auto w-[calc(100%-2rem)] max-w-[803px] overflow-hidden rounded-[20px] bg-white p-0 text-ink shadow-2xl backdrop:bg-black/30 backdrop:backdrop-blur-md">
+      {open && (
+        <>
+          <div className="relative mx-6 mt-6 grid h-[221px] place-items-center overflow-hidden rounded-2xl bg-gradient-to-b from-brand-50 to-white" aria-hidden>
+            {[609, 520, 430, 340, 250].map((d, i) => <span key={d} className="absolute rounded-full border border-brand/10" style={{ width: d, height: d, opacity: 1 - i * 0.12 }} />)}
+            <span className="relative grid size-[110px] place-items-center rounded-full bg-white shadow-[0_12px_32px_rgba(51,167,245,0.25)]"><ShieldCheck size={48} className="text-brand" /></span>
+          </div>
+          <div className="px-6 pb-2 pt-6 text-center">
+            <h2 id="welcome-title" className="text-[19px] font-semibold">Welcome to Paysplit</h2>
+            <p className="mx-auto mt-1 max-w-[511px] text-sm text-muted">Two quick stages and your salary will split itself every pay day. You can set things up now and verify any time.</p>
+            <div className="mt-5 grid gap-4 text-left sm:grid-cols-2">
+              {[{ s: "Step 1", t: "Profile & Identity Verification", d: "BVN or NIN, then a biometric liveness selfie.", icon: ShieldCheck }, { s: "Step 2", t: "Setup Checklist", d: "Income, vaults & rules: tell us where each naira goes.", icon: ClipboardList }].map(({ s, t, d, icon: Icon }) => (
+                <div key={s} className="rounded-2xl border border-line bg-panel-2 p-5">
+                  <span className="flex items-center justify-between"><span className="text-xs font-medium text-brand">{s}</span><Icon size={20} className="text-brand" aria-hidden /></span>
+                  <p className="mt-3 text-[15px] font-medium">{t}</p><p className="mt-1 text-sm text-muted">{d}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="mt-5 grid grid-cols-2 gap-4 border-t border-line px-6 py-6">
+            <Button variant="secondary" size="lg" className="h-[60px]" onClick={close}>I&apos;ll do this later</Button>
+            <Button size="lg" className="h-[60px]" onClick={() => { close(); window.location.href = "/onboarding"; }}>Start verification</Button>
+          </div>
+        </>
       )}
     </dialog>
   );

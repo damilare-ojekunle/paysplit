@@ -1,20 +1,22 @@
 import Link from "next/link";
 import { Download } from "lucide-react";
 import type { TxRow } from "@/server/queries";
-import { naira, fmtDateTimeBar, flowKind } from "@/lib/format";
+import { naira, flowKind } from "@/lib/format";
 import { Alert, amountClass, Badge, CategoryPill, FlowIcon } from "./ui";
 
 /** Receipt content shared by the transactions pop-up and the standalone receipt page. */
 export function ReceiptBody({ t }: { t: TxRow }) {
   const k = flowKind(t);
+  const at = new Date(t.createdAt);
+  const stamp = `${at.toLocaleDateString("en-US", { timeZone: "Africa/Lagos", month: "short", day: "numeric", year: "numeric" })} at ${at.toLocaleTimeString("en-US", { timeZone: "Africa/Lagos", hour: "2-digit", minute: "2-digit" })}`;
+  const destType = t.type === "WALLET_ALLOCATION" ? "Wallet" : t.type === "TRANSFER_OUT" ? "Beneficiary" : t.type === "SALARY_IN" ? "Salary account" : t.type === "WALLET_TO_SALARY" ? "Salary account" : "Salary account (refund)";
   const rows: [string, React.ReactNode][] = [
-    ["Reference", <span key="r" className="font-mono text-[13px]">{t.reference}</span>],
-    ["Type", t.label],
-    ["Date", fmtDateTimeBar(t.createdAt)],
-    ["From", t.source],
-    ["To", t.destination],
+    ["Recipient / Destination", t.destination],
+    ["Destination Type", destType],
+    ["Source", t.source],
+    ["Timestamp", stamp],
     ["Category", <CategoryPill key="c">{t.category}</CategoryPill>],
-    ["Narration", t.description],
+    ["Settlement Reference", <span key="r" className="font-mono text-[13px]">Ref: {t.reference}</span>],
     ["Provider reference", t.providerRef ?? "—"],
     ["Fees", "₦0"],
   ];
@@ -22,7 +24,8 @@ export function ReceiptBody({ t }: { t: TxRow }) {
     <div>
       <div className="flex flex-col items-center rounded-2xl bg-panel-2 px-5 py-6 text-center">
         <span className="scale-[1.9]"><FlowIcon kind={k} /></span>
-        <p className={`tabular mt-5 text-[32px] font-semibold leading-none ${amountClass(k)}`}>{k === "in" ? "+" : "-"}{naira(t.amountMinor)}</p>
+        <p className="mt-5 text-xs text-muted">{t.type === "SALARY_IN" ? "Total Received Amount" : "Total Disbursed Amount"}</p>
+        <p className={`tabular mt-1 text-[40px] font-semibold leading-none ${amountClass(k)}`}>{naira(t.amountMinor)}</p>
         <p className="mt-2 text-sm text-muted">{t.description}</p>
         <div className="mt-3"><Badge status={t.status} /></div>
       </div>

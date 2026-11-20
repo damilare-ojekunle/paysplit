@@ -57,16 +57,19 @@ export function Balance({ minor }: { minor: string }) {
 
 export function AccountDetails({ account }: { account: { accountNumber: string; bankName: string; accountName: string } }) {
   const [open, setOpen] = useState(false);
+  const all = `${account.accountNumber} — ${account.bankName} — ${account.accountName}`;
+  const share = async () => { try { if (navigator.share) await navigator.share({ title: "My salary account", text: all }); else await navigator.clipboard.writeText(all); } catch {} };
   return (
     <>
       <button onClick={() => setOpen(true)} className="text-brand underline underline-offset-2 hover:no-underline">View Account Details</button>
-      <Modal open={open} onClose={() => setOpen(false)} size="sm" icon={<Landmark size={20} />} title="Salary account details" description="Share these with your employer. Salary paid here is split automatically.">
-        <dl className="space-y-4 rounded-2xl bg-panel-2 p-5">
-          <div><dt className="text-xs text-muted">Account number</dt><dd className="tabular mt-1 text-[28px] font-semibold tracking-wide">{account.accountNumber}</dd></div>
-          <div><dt className="text-xs text-muted">Account name</dt><dd className="mt-1 text-sm font-medium">{account.accountName}</dd></div>
-          <div><dt className="text-xs text-muted">Bank name</dt><dd className="mt-1 text-sm font-medium">{account.bankName}</dd></div>
+      <Modal open={open} onClose={() => setOpen(false)} size="sm" icon={<Landmark size={20} />} title={account.accountName} description="Your dedicated PaySplit salary account"
+        footer={<div className="grid w-full grid-cols-2 gap-3"><Button variant="secondary" size="lg" className="h-[60px]" onClick={share}>Share</Button><Button size="lg" className="h-[60px]" onClick={async () => { await navigator.clipboard.writeText(all).catch(() => {}); setOpen(false); }}>Copy details</Button></div>}>
+        <dl className="divide-y divide-line rounded-2xl border border-line">
+          <div className="flex items-center justify-between gap-3 p-4"><div><dt className="text-xs text-muted">Account number</dt><dd className="tabular mt-1 text-[26px] tracking-wide">{account.accountNumber}</dd></div><CopyButton text={account.accountNumber} label="" /></div>
+          <div className="p-4"><dt className="text-xs text-muted">Bank name</dt><dd className="mt-1 text-sm">{account.bankName}</dd></div>
+          <div className="p-4"><dt className="text-xs text-muted">Account name</dt><dd className="mt-1 text-sm">{account.accountName}</dd></div>
         </dl>
-        <div className="mt-5 flex justify-center"><CopyButton text={`${account.accountNumber} — ${account.bankName} — ${account.accountName}`} label="Copy account details" /></div>
+        <p className="mt-3 text-xs text-muted">Give these to your employer. Salary paid here is split automatically by your rules.</p>
       </Modal>
     </>
   );

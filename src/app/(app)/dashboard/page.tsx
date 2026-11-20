@@ -1,13 +1,13 @@
 import Link from "next/link";
 import type { LedgerTxnType } from "@prisma/client";
-import { ArrowUp, ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { ArrowUp, CheckCircle2, ChevronDown, ChevronRight, Circle, Plus, ShieldCheck } from "lucide-react";
 import { requireVerifiedUser } from "@/server/auth";
 import { cashFlow, dashboard, listTransactions, salaryForMonth } from "@/server/queries";
 import { naira, fmtDate, maskAcct, flowKind } from "@/lib/format";
 import { Alert, amountClass, Badge, CategoryPill, Checkbox, Empty, FlowIcon, LinkButton, Panel, SearchBox, Segmented, Table, TablePanel, td, th } from "@/components/ui";
 import { RetryProvision, RunNowButton } from "@/components/client-bits";
 import { AccountDetails, Balance, CashFlowChart, ExportButton, NotificationCarousel } from "@/components/dashboard-bits";
-import { SetupWizard } from "@/components/setup-wizard";
+import { GettingStarted, SetupWizard } from "@/components/setup-wizard";
 import { WalletIcon, walletTone } from "@/components/wallet-icon";
 const ACT: Record<string, LedgerTxnType | undefined> = { all: undefined, wallets: "WALLET_ALLOCATION", beneficiaries: "TRANSFER_OUT" };
 
@@ -69,9 +69,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </section>
 
       {!kycOk && (
-        <Alert tone="warn" className="mt-5">
-          <b>Money movement is locked.</b> You can set up wallets, beneficiaries and draft rules now. Transfers and automatic splits unlock once your identity is verified. <Link href="/onboarding" className="font-medium underline">Complete verification</Link>
-        </Alert>
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-brand/20 bg-brand-50 px-5 py-4" role="status">
+          <div className="flex items-center gap-3"><ShieldCheck size={22} className="shrink-0 text-brand" aria-hidden /><div><p className="font-medium">Complete Onboarding</p><p className="text-sm text-muted">Verify your account to upgrade to a Tier 2. Unlock splitting and get a dedicated account number.</p></div></div>
+          <LinkButton href="/onboarding" size="sm" className="h-10 px-4">Complete Onboarding</LinkButton>
+        </div>
       )}
 
       {/* ------------------------------------------------ balance + KPIs */}
@@ -139,12 +140,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                       );
                     })}
                   </Table>
-                ) : <Empty title={sp.q || act !== "all" ? "No matching activity" : "No salary received yet"} body={sp.q || act !== "all" ? "Try a different search or filter." : d.account?.status === "ACTIVE" ? "Share your salary account details with your employer. Your split runs automatically when salary arrives." : "Once your salary account is ready, incoming salary and splits will appear here."} />}
+                ) : <Empty title={sp.q || act !== "all" ? "No matching activity" : "No activity yet"} body={sp.q || act !== "all" ? "Try a different search or filter." : "Activities will be displayed here."} />}
               </TablePanel>
             </div>
           </div>
 
           <div className="space-y-4">
+            {!kycOk || !setupDone ? <OnboardingProgress kyc={kycOk} kycStarted={d.user.kycStatus !== "NOT_STARTED"} setup={setupDone} /> : (
             <section className="rounded-[20px] border border-line-2 bg-panel-2 p-2">
               <div className="flex items-center justify-between px-4 py-3"><h2 className="text-lg">Salary Partition</h2><Link href="/rules" className="flex items-center gap-1 text-lg text-brand hover:underline">See rules <ChevronRight size={18} /></Link></div>
               <div className="rounded-2xl border border-line bg-white p-5">
@@ -161,6 +163,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               </div>
             </section>
 
+            )}
+
             <section className="rounded-[20px] border border-line-2 bg-panel-2 p-2">
               <Link href="/destinations" className="flex items-center justify-between px-4 py-3 hover:text-brand"><h2 className="text-lg">Wallets</h2><ChevronRight size={20} /></Link>
               {d.wallets.length ? (
@@ -175,13 +179,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                     </li>
                   ))}
                 </ul>
-              ) : <div className="rounded-2xl border border-line bg-white"><Empty title="No wallets yet" body="Create a wallet for savings, rent or emergencies." action={<LinkButton href="/destinations/wallets/new" size="sm">Create wallet</LinkButton>} /></div>}
+              ) : <div className="rounded-2xl border border-line bg-white"><Empty title="No wallet yet" body="You have no wallet to display yet." action={<Link href="/destinations/wallets/new" className="text-sm font-medium text-brand hover:underline">Create a wallet</Link>} /></div>}
             </section>
           </div>
         </div>
       </Panel>
 
-      {!setupDone && <SetupWizard steps={setupSteps} salaryDay={d.user.salaryDay} />}
+      {!kycOk && d.user.kycStatus === "NOT_STARTED" ? <GettingStarted /> : !setupDone && <SetupWizard steps={setupSteps} salaryDay={d.user.salaryDay} />}
     </>
   );
 }
@@ -213,5 +217,38 @@ function Donut({ parts, center, sub }: { parts: { v: bigint; c: string }[]; cent
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center"><span className="text-[11px] text-ink">Salary Remaining</span><span className="tabular mt-1 text-[22px] font-semibold">{center}</span><span className="mt-1.5 text-[11px] text-success">{sub}</span></div>
     </div>
+  );
+}
+
+function OnboardingProgress({ kyc, kycStarted, setup }: { kyc: boolean; kycStarted: boolean; setup: boolean }) {
+  const items = [
+    { t: "Signup Account", d: "Create your Paysplit account", done: true, href: "/settings" },
+    { t: "Complete KYC", d: "Verify using a government-issued ID", done: kyc, href: "/onboarding", state: kycStarted ? "In progress" : "To do" },
+    { t: "Setup Checklist", d: "Add salary source and set your first rule.", done: setup, href: "/rules", state: "To do" },
+  ];
+  const pct = Math.round((items.filter((i) => i.done).length / items.length) * 100);
+  const r = 50, C = 2 * Math.PI * r;
+  return (
+    <section className="rounded-[20px] border border-line-2 bg-panel-2 p-2">
+      <div className="flex items-center justify-between px-4 py-3"><h2 className="text-lg">Account Setup</h2><Link href="/onboarding" className="flex items-center gap-1 text-[15px] text-brand hover:underline">Continue <ChevronRight size={16} /></Link></div>
+      <div className="rounded-2xl border border-line bg-white p-5">
+        <div className="flex items-center gap-5">
+          <div className="relative size-[118px] shrink-0">
+            <svg viewBox="0 0 118 118" className="-rotate-90" role="img" aria-label={`Setup ${pct}% complete`}><circle cx="59" cy="59" r={r} fill="none" stroke="#efefef" strokeWidth="14" /><circle cx="59" cy="59" r={r} fill="none" stroke="#33a7f5" strokeWidth="14" strokeLinecap="round" strokeDasharray={`${(pct / 100) * C} ${C}`} /></svg>
+            <span className="absolute inset-0 grid place-items-center text-[17px] font-semibold">{pct}%</span>
+          </div>
+          <div><p className="tabular text-[30px] font-medium leading-tight">{items.filter((i) => i.done).length}/3</p><p className="text-sm text-muted">steps complete</p></div>
+        </div>
+        <ol className="mt-5 space-y-4">
+          {items.map((it) => (
+            <li key={it.t}><Link href={it.href} className="flex items-start gap-3 hover:opacity-80">
+              {it.done ? <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-success" aria-hidden /> : <Circle size={20} className="mt-0.5 shrink-0 text-subtle" aria-hidden />}
+              <span className="min-w-0 flex-1"><span className="block text-[15px]">{it.t}</span><span className="text-sm text-muted">{it.d}</span></span>
+              <span className={`text-sm ${it.done ? "text-success" : "text-muted"}`}>{it.done ? "Done" : it.state}</span>
+            </Link></li>
+          ))}
+        </ol>
+      </div>
+    </section>
   );
 }

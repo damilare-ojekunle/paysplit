@@ -42,6 +42,7 @@ model User {
   monthlySalaryMinor BigInt? // user-declared expected salary, used for planning only
   avatarUrl       String?
   passwordChangedAt DateTime?
+  termsAcceptedAt DateTime? // Terms of Use + Privacy Policy + age 18+ confirmation at sign-up
   notifyPrefs     Json? // { email: { salary, split, transfer }, inApp: { ... } } — security/kyc always on
   timezone        String    @default("Africa/Lagos")
   notifyEmail     Boolean   @default(true)

@@ -12,6 +12,7 @@ const Schema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
   password: z.string(),
   confirmPassword: z.string(),
+  acceptTerms: z.literal(true, { errorMap: () => ({ message: "Please accept the Terms of Use and Privacy Policy" }) }),
 });
 
 export const POST = route(async (req) => {
@@ -22,7 +23,7 @@ export const POST = route(async (req) => {
   if (b.password !== b.confirmPassword) throw new HttpError(422, "Passwords do not match");
   let user;
   try {
-    user = await prisma.user.create({ data: { firstName: b.firstName, lastName: b.lastName, email: b.email, passwordHash: await hashPassword(b.password) } });
+    user = await prisma.user.create({ data: { firstName: b.firstName, lastName: b.lastName, email: b.email, passwordHash: await hashPassword(b.password), termsAcceptedAt: new Date() } });
   } catch (e) {
     if (isUniqueViolation(e)) throw new HttpError(409, "An account with this email already exists. Try signing in.");
     throw e;
