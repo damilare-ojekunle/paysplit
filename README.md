@@ -18,8 +18,10 @@ Built for the Talent Nation Full Stack Engineer assessment. All integrations are
 4. **Salary arrives** → the pay-in is verified with Flutterwave, credited in the ledger, and the split runs automatically for that pay-in.
 5. **Split execution**: wallet allocations happen instantly in the ledger; beneficiary allocations become Flutterwave transfers whose final status comes back by webhook.
 6. **Run now**: a user can manually split any unallocated funds in their salary account, with a preview first.
-7. **History**: transactions list with filters, per-transaction detail, PDF receipts, CSV/PDF statements, notifications (in-app + email), data export.
-8. **Admin panel**: overview, users, and a tool to send a sandbox test salary to any user through the real Flutterwave checkout and webhook flow.
+7. **Rule options**: each rule can run on every inflow, only on inflows above a minimum, or only on inflows from a named sender (matched against the payer name Flutterwave reports); and either on every inflow or until a monthly target is reached.
+8. **History**: transactions list with filters, per-transaction detail, PDF receipts, CSV/PDF statements, notifications (in-app + email), data export.
+9. **Analytics**: monthly salary, savings and transfer totals with month-on-month change.
+10. **Admin panel**: overview, Manage Users (with **Pay salary**, which sends a sandbox salary through the real Flutterwave checkout and verification flow), user detail and settings with integration status.
 
 ## Architecture
 
@@ -58,6 +60,8 @@ scripts/                seed-admin, smoke-money (end-to-end money check against 
 - Percentages round **down** to the kobo, so the total can never exceed the salary.
 - A rule that can't be fully funded is **skipped**, never partly paid; later, smaller rules still run.
 - Anything not allocated stays in the salary account.
+- A rule whose inflow condition doesn't match is skipped with a reason. Manual runs have no inflow, so conditional rules are skipped there.
+- Monthly-target rules are capped at what's left of their target this month, then skipped once it's reached.
 
 **Double-entry ledger** ([src/server/ledger.ts](src/server/ledger.ts)):
 - Accounts: user salary, user wallets, cash at provider, transfers in flight.
@@ -84,7 +88,8 @@ Money flow: pay-in `cash → salary`; wallet split `salary → wallet`; transfer
 
 ## Security
 
-- Passwords hashed with bcrypt (cost 12). Sessions are random tokens stored as SHA-256 hashes, sent in an `httpOnly`, `secure`, `SameSite=Lax` cookie, and can be revoked.
+- Sign-up requires accepting the Terms of Use and Privacy Policy (stored with a timestamp). "Remember me" gives a 7-day session; otherwise the session ends with the browser (12-hour server limit).
+- Passwords hashed with bcrypt (cost 12). Changing the password in Settings requires the current one and signs out other sessions. Sessions are random tokens stored as SHA-256 hashes, sent in an `httpOnly`, `secure`, `SameSite=Lax` cookie, and can be revoked.
 - Server-side checks on every route: signed in → email verified → KYC approved for money actions. Every query is scoped to the current user's id. Admin routes need the `ADMIN` role.
 - All input validated with Zod.
 - Rate limiting backed by Postgres (works across serverless instances) on login, register, password reset, resend verification, KYC, account resolution, beneficiary creation, account provisioning and Run Now.
