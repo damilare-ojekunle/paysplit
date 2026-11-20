@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Columns2, Play, Plus, Split, SquarePen, Trash2 } from "lucide-react";
+import { Columns2, Play, Plus, RotateCcw, Split, SquarePen, Trash2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { Modal } from "./client-bits";
 import { Alert, Button, Field, Input, Select } from "./ui";
@@ -114,15 +114,17 @@ export function RuleActions({ id, status, kycOk, edit }: { id: string; status: s
   );
 }
 
-export function RuleModalButton({ destinations, existing, kycOk, trigger }: { destinations: Dest[]; existing?: Existing; kycOk: boolean; trigger: "add" | "edit" | "add-empty" }) {
-  const [open, setOpen] = useState(false);
+export function RuleModalButton({ destinations, existing, kycOk, trigger, preset, autoOpen }: { destinations: Dest[]; existing?: Existing; kycOk: boolean; trigger: "add" | "edit" | "add-empty" | "reconfigure" | "create-for"; preset?: { type?: string; dest?: string }; autoOpen?: boolean }) {
+  const [open, setOpen] = useState(!!autoOpen);
   return (
     <>
-      {trigger === "edit"
+      {trigger === "reconfigure" || trigger === "create-for"
+        ? <Button variant="outline" size="sm" className="h-10 px-4" onClick={() => setOpen(true)}><RotateCcw size={16} /> {trigger === "reconfigure" ? "Reconfigure Rule" : "Create Split Rule"}</Button>
+        : trigger === "edit"
         ? <button className="grid size-8 place-items-center rounded-lg hover:bg-panel" aria-label="Edit rule" title="Edit rule" onClick={() => setOpen(true)}><SquarePen size={18} strokeWidth={1.7} /></button>
         : <Button size={trigger === "add" ? "xl" : "md"} className={trigger === "add" ? "px-6" : ""} onClick={() => setOpen(true)}><Plus size={18} /> {trigger === "add" ? "Add New Rule" : "Create your first rule"}</Button>}
       <Modal open={open} onClose={() => setOpen(false)} size="lg" icon={<Split size={20} />} title={existing ? "Edit split rule" : "Add new split rule"} description={existing ? "Changes apply from the next split. Past splits keep the values they ran with." : "Send a fixed amount or a percentage of each salary to a wallet or beneficiary."}>
-        <RuleForm destinations={destinations} existing={existing} kycOk={kycOk} onDone={() => setOpen(false)} />
+        <RuleForm destinations={destinations} existing={existing} preset={preset} kycOk={kycOk} onDone={() => setOpen(false)} />
       </Modal>
     </>
   );

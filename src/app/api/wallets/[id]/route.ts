@@ -4,7 +4,7 @@ import { requireVerifiedUser } from "@/server/auth";
 import { route, body, json, HttpError } from "@/server/http";
 import { audit } from "@/server/notify";
 import { balanceOf } from "@/server/ledger";
-import { WALLET_CATEGORIES, amountMajor } from "@/server/validation";
+import { WALLET_CATEGORIES, WALLET_COLORS, amountMajor } from "@/server/validation";
 
 type Ctx = { params: Promise<{ id: string }> };
 async function own(userId: string, id: string) {
@@ -13,13 +13,13 @@ async function own(userId: string, id: string) {
   return w;
 }
 
-const Patch = z.object({ name: z.string().trim().min(1).max(60).optional(), category: z.enum(WALLET_CATEGORIES).optional(), target: amountMajor.nullable().optional().or(z.literal("").transform(() => null)), description: z.string().trim().max(200).optional() });
+const Patch = z.object({ name: z.string().trim().min(1).max(60).optional(), category: z.enum(WALLET_CATEGORIES).optional(), target: amountMajor.nullable().optional().or(z.literal("").transform(() => null)), description: z.string().trim().max(200).optional(), color: z.enum(WALLET_COLORS).optional() });
 
 export const PATCH = route<Ctx>(async (req, { params }) => {
   const user = await requireVerifiedUser();
   const w = await own(user.id, (await params).id);
   const b = await body(req, Patch);
-  const updated = await prisma.wallet.update({ where: { id: w.id }, data: { name: b.name, category: b.category, description: b.description, targetMinor: b.target === undefined ? undefined : b.target } });
+  const updated = await prisma.wallet.update({ where: { id: w.id }, data: { name: b.name, category: b.category, description: b.description, color: b.color, targetMinor: b.target === undefined ? undefined : b.target } });
   await audit(user.id, "wallet.update", { type: "Wallet", id: w.id }, { fields: Object.keys(b) });
   return json(updated);
 });

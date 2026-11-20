@@ -1,11 +1,6 @@
-import { Card, PageHeader } from "@/components/ui";
-import { WalletForm } from "@/components/destination-forms";
+import { redirect } from "next/navigation";
 
+/** Creating a wallet is a pop-up on Destinations (Figma "Create New Wallet"). */
 export default function NewWallet() {
-  return (
-    <>
-      <PageHeader title="Create new wallet" crumbs={[{ href: "/destinations", label: "Destinations" }, { label: "New wallet" }]} />
-      <Card className="p-6 sm:p-10"><WalletForm /></Card>
-    </>
-  );
+  redirect("/destinations?new=1");
 }

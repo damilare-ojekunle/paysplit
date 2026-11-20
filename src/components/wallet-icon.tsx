@@ -10,12 +10,14 @@ export const WALLET_TONES = [
   { solid: "bg-w-purple", soft: "from-[#efe3fd] to-[#f8f2fe]", text: "text-w-purple", hex: "#8a38f5" },
   { solid: "bg-w-blue", soft: "from-[#e6f4fe] to-[#f4faff]", text: "text-w-blue", hex: "#33a7f5" },
 ];
-export const walletTone = (i: number) => WALLET_TONES[i % WALLET_TONES.length];
+const BY_COLOR: Record<string, number> = { green: 0, orange: 1, purple: 2, blue: 3 };
+/** Tone for a wallet: its chosen accent colour, otherwise cycled by position. */
+export const walletTone = (i: number, color?: string | null) => WALLET_TONES[color && color in BY_COLOR ? BY_COLOR[color] : i % WALLET_TONES.length];
 
-export function WalletIcon({ category, index, size = 38 }: { category: string; index: number; size?: number }) {
+export function WalletIcon({ category, index, size = 38, color }: { category: string; index: number; size?: number; color?: string | null }) {
   const Icon = ICONS[category] ?? Wallet;
   return (
-    <span className={clsx("grid shrink-0 place-items-center rounded-[10px] text-white", walletTone(index).solid)} style={{ width: size, height: size }} aria-hidden>
+    <span className={clsx("grid shrink-0 place-items-center rounded-[10px] text-white", walletTone(index, color).solid)} style={{ width: size, height: size }} aria-hidden>
       <Icon size={Math.round(size * 0.55)} strokeWidth={1.7} />
     </span>
   );

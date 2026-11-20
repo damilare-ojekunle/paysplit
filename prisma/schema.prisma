@@ -206,6 +206,7 @@ model Wallet {
   category        String
   targetMinor     BigInt?
   description     String?
+  color           String? // accent: green | orange | purple | blue
   ledgerAccountId String        @unique
   ledgerAccount   LedgerAccount @relation(fields: [ledgerAccountId], references: [id])
   archivedAt      DateTime?

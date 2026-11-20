@@ -61,6 +61,7 @@ const LABEL: Record<LedgerTxnType, string> = {
 
 export interface TxFilter {
   type?: LedgerTxnType;
+  types?: LedgerTxnType[];
   status?: string;
   q?: string;
   from?: Date;
@@ -76,7 +77,7 @@ export async function listTransactions(userId: string, f: TxFilter = {}) {
   const page = Math.max(f.page ?? 1, 1);
   const where: Prisma.LedgerTransactionWhereInput = {
     userId,
-    type: f.type ? f.type : { not: "TRANSFER_SETTLED" }, // settlement is internal; status shows on the transfer row
+    type: f.type ? f.type : f.types ? { in: f.types } : { not: "TRANSFER_SETTLED" }, // settlement is internal; status shows on the transfer row
     createdAt: { gte: f.from, lte: f.to },
     ...(f.q ? { OR: [{ description: { contains: f.q, mode: "insensitive" } }, { reference: { contains: f.q, mode: "insensitive" } }] } : {}),
     ...(f.walletId ? { metadata: { path: ["walletId"], equals: f.walletId } } : {}),

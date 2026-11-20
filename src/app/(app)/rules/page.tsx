@@ -21,7 +21,7 @@ const segStyle = (i: number) => {
   return { background: s.hatch ? `repeating-linear-gradient(135deg, ${s.c} 0 6px, color-mix(in srgb, ${s.c} 82%, white) 6px 9px)` : s.c };
 };
 
-export default async function RulesPage({ searchParams }: { searchParams: Promise<{ filter?: string; q?: string }> }) {
+export default async function RulesPage({ searchParams }: { searchParams: Promise<{ filter?: string; q?: string; new?: string }> }) {
   const user = await requireVerifiedUser();
   const sp = await searchParams;
   const filter = sp.filter && ["active", "paused", "draft"].includes(sp.filter) ? sp.filter : "all";
@@ -54,7 +54,7 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
 
   return (
     <>
-      <PageHeader title="Split Rules" crumbs={[{ href: "/dashboard", label: "Dashboard" }, { label: "Split Rules" }]} action={<>{kycOk && active.length > 0 && <RunNowButton size="xl" variant="outline" disabledReason={runDisabled} />}<RuleModalButton trigger="add" destinations={dests} kycOk={kycOk} /></>} />
+      <PageHeader title="Split Rules" crumbs={[{ href: "/dashboard", label: "Dashboard" }, { label: "Split Rules" }]} action={<>{kycOk && active.length > 0 && <RunNowButton size="xl" variant="outline" disabledReason={runDisabled} />}<RuleModalButton trigger="add" destinations={dests} kycOk={kycOk} autoOpen={!!sp.new} preset={sp.new ? { type: sp.new.split(":")[0], dest: sp.new.split(":")[1] } : undefined} /></>} />
       {!kycOk && <Alert tone="warn" className="mb-5">Rules stay as drafts until your identity is verified. <Link href="/onboarding" className="underline">Verify now</Link></Alert>}
 
       <Panel className="space-y-4 sm:-mx-4">
