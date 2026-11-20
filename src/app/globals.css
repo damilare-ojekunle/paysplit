@@ -1,27 +1,57 @@
 @import "tailwindcss";
 
-/* Tokens taken from the PaySplit Figma (Web App design). */
+/* Tokens sampled from the PaySplit Figma (Web App design, page 1:8). */
 @theme {
-  --color-brand: #1e9bf0;
-  --color-brand-600: #1683cf;
-  --color-brand-50: #eaf6fe;
-  --color-ink: #0f172a;
-  --color-muted: #64748b;
-  --color-line: #e6ebf2;
-  --color-canvas: #f7f9fc;
+  --color-brand: #33a7f5;
+  --color-brand-600: #1d95e6;
+  --color-brand-50: #edf8ff;
+  --color-brand-100: #dff1fe;
+  --color-ink: #171918;
+  --color-ink-2: #343635;
+  --color-muted: #6a6b69;
+  --color-subtle: #939493;
+  --color-line: #e4e4e4;
+  --color-line-2: #efefef;
+  --color-canvas: #fbfdff;
+  --color-panel: #f4f4f4;
+  --color-panel-2: #f9f9f9;
   --color-navy: #0b1424;
-  --color-success: #16a34a;
-  --color-success-50: #e8f8ee;
-  --color-danger: #dc2626;
-  --color-danger-50: #fdecec;
+  --color-success: #11b01e;
+  --color-success-ink: #3f8a50;
+  --color-success-50: #eef5f0;
+  --color-danger: #d92d20;
+  --color-danger-ink: #af4b4b;
+  --color-danger-50: #f7eded;
   --color-warn: #b45309;
   --color-warn-50: #fff4e5;
+  --color-w-green: #0f9523;
+  --color-w-green-50: #effdf1;
+  --color-w-orange: #fc4f24;
+  --color-w-orange-50: #feeee9;
+  --color-w-purple: #8a38f5;
+  --color-w-purple-50: #f2e8fe;
+  --color-w-blue: #33a7f5;
+  --color-w-blue-50: #ebf6ff;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --radius-card: 20px;
+  --radius-card: 16px;
+  --radius-panel: 24px;
 }
 
 html, body { background: var(--color-canvas); color: var(--color-ink); }
 body { font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
 :focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; border-radius: 6px; }
 .tabular { font-variant-numeric: tabular-nums; }
+.kpi-card { background: linear-gradient(180deg, #ebf6ff 0%, #f6fbff 100%); }
+.hero-dark {
+  background:
+    radial-gradient(60% 90% at 62% 110%, rgba(51, 167, 245, 0.22) 0%, rgba(51, 167, 245, 0) 60%),
+    radial-gradient(50% 70% at 10% 120%, rgba(30, 80, 130, 0.45) 0%, rgba(0, 0, 0, 0) 70%),
+    linear-gradient(180deg, #000102 0%, #07121d 55%, #0d1b2a 100%);
+}
+.glass {
+  background: linear-gradient(160deg, rgba(20, 34, 50, 0.95) 0%, rgba(7, 14, 22, 0.98) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 30px 60px rgba(0, 0, 0, 0.45);
+}
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }

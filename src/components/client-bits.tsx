@@ -15,19 +15,27 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
   );
 }
 
-export function Modal({ open, onClose, title, children, wide }: { open: boolean; onClose: () => void; title: string; children: ReactNode; wide?: boolean }) {
+export function Modal({ open, onClose, title, description, icon, children, footer, wide, size }: { open: boolean; onClose: () => void; title: string; description?: ReactNode; icon?: ReactNode; children: ReactNode; footer?: ReactNode; wide?: boolean; size?: "sm" | "md" | "lg" }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => { const d = ref.current; if (!d) return; if (open && !d.open) d.showModal(); if (!open && d.open) d.close(); }, [open]);
+  const w = size === "sm" ? "max-w-[420px]" : size === "lg" || wide ? "max-w-[678px]" : "max-w-[540px]";
   return (
-    <dialog ref={ref} onClose={onClose} onClick={(e) => e.target === ref.current && onClose()} aria-labelledby="modal-title" className={`m-auto w-[calc(100%-2rem)] ${wide ? "max-w-2xl" : "max-w-lg"} rounded-3xl p-0 backdrop:bg-navy/50`}>
+    <dialog ref={ref} onClose={onClose} onClick={(e) => e.target === ref.current && onClose()} aria-labelledby="modal-title" className={`m-auto w-[calc(100%-2rem)] ${w} overflow-hidden rounded-[20px] bg-white p-0 text-ink shadow-2xl backdrop:bg-[#0b1424]/40 backdrop:backdrop-blur-[2px]`}>
       {open && (
-        <div className="p-6 sm:p-8">
-          <div className="mb-5 flex items-start justify-between gap-4">
-            <h2 id="modal-title" className="text-xl font-semibold">{title}</h2>
-            <button onClick={onClose} aria-label="Close" className="grid size-9 place-items-center rounded-full hover:bg-canvas"><X size={18} /></button>
+        <>
+          <div className="flex items-start justify-between gap-4 px-6 pb-2 pt-6">
+            <div className="flex items-start gap-3">
+              {icon && <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-line bg-white text-brand shadow-sm">{icon}</span>}
+              <div>
+                <h2 id="modal-title" className="text-lg font-semibold">{title}</h2>
+                {description && <p className="mt-1 text-sm text-muted">{description}</p>}
+              </div>
+            </div>
+            <button onClick={onClose} aria-label="Close" className="grid size-9 shrink-0 place-items-center rounded-full border border-line hover:bg-panel-2"><X size={16} /></button>
           </div>
-          {children}
-        </div>
+          <div className="px-6 py-4">{children}</div>
+          {footer && <div className="flex flex-wrap justify-end gap-3 border-t border-line px-6 py-5">{footer}</div>}
+        </>
       )}
     </dialog>
   );

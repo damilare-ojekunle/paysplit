@@ -38,6 +38,9 @@ model User {
   phone           String?
   kycStatus       KycStatus @default(NOT_STARTED)
   salaryDay       Int? // 1..31, expected day of month (estimate only)
+  employer        String?
+  monthlySalaryMinor BigInt? // user-declared expected salary, used for planning only
+  avatarUrl       String?
   timezone        String    @default("Africa/Lagos")
   notifyEmail     Boolean   @default(true)
   createdAt       DateTime  @default(now())

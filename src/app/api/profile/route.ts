@@ -4,6 +4,7 @@ import { requireVerifiedUser } from "@/server/auth";
 import { route, body, json, HttpError } from "@/server/http";
 import { audit } from "@/server/notify";
 import { SUPPORTED_COUNTRIES } from "@/server/providers";
+import { amountMajor } from "@/server/validation";
 
 const Schema = z.object({
   firstName: z.string().trim().min(1).max(60).optional(),
@@ -12,6 +13,9 @@ const Schema = z.object({
   phone: z.string().trim().optional(),
   salaryDay: z.number().int().min(1).max(31).nullable().optional(),
   notifyEmail: z.boolean().optional(),
+  employer: z.string().trim().max(80).nullable().optional(),
+  monthlySalary: amountMajor.nullable().optional(),
+  avatarUrl: z.string().max(200_000).regex(/^data:image\/(png|jpeg|webp);base64,/, "Upload a PNG, JPEG or WebP image").nullable().optional(),
 });
 
 /** Nigerian mobile: +234 followed by 10 digits starting 7/8/9 (accepts 0803…, 803…, +234803…). */
@@ -32,7 +36,8 @@ export const PATCH = route(async (req) => {
   const country = b.country ?? user.country;
   if (b.country && !SUPPORTED_COUNTRIES.some((c) => c.code === b.country)) throw new HttpError(422, "This country is not supported yet");
   if (b.country && user.kycStatus === "APPROVED" && b.country !== user.country) throw new HttpError(409, "Country can't be changed after verification");
-  const data = { ...b, phone: b.phone ? normalisePhone(country || "NG", b.phone) : undefined };
+  const { monthlySalary, ...rest } = b;
+  const data = { ...rest, monthlySalaryMinor: monthlySalary === undefined ? undefined : monthlySalary, phone: b.phone ? normalisePhone(country || "NG", b.phone) : undefined };
   await prisma.user.update({ where: { id: user.id }, data });
   await audit(user.id, "profile.update", { type: "User", id: user.id }, { fields: Object.keys(b) });
   return json({ ok: true });

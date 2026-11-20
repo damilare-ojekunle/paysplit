@@ -1,181 +1,217 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Circle, Download, Plus, Wallet as WalletIcon } from "lucide-react";
+import type { LedgerTxnType } from "@prisma/client";
+import { ArrowUp, ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { requireVerifiedUser } from "@/server/auth";
-import { dashboard } from "@/server/queries";
-import { naira, fmtDate, fmtDateTime } from "@/lib/format";
-import { Alert, Badge, Card, Empty, LinkButton } from "@/components/ui";
-import { CopyButton, RetryProvision, RunNowButton } from "@/components/client-bits";
+import { cashFlow, dashboard, listTransactions, salaryForMonth } from "@/server/queries";
+import { naira, fmtDate, maskAcct, flowKind } from "@/lib/format";
+import { Alert, amountClass, Badge, CategoryPill, Checkbox, Empty, FlowIcon, LinkButton, Panel, SearchBox, Segmented, Table, TablePanel, td, th } from "@/components/ui";
+import { RetryProvision, RunNowButton } from "@/components/client-bits";
+import { AccountDetails, Balance, CashFlowChart, ExportButton, NotificationCarousel } from "@/components/dashboard-bits";
+import { SetupWizard } from "@/components/setup-wizard";
+import { WalletIcon, walletTone } from "@/components/wallet-icon";
+const ACT: Record<string, LedgerTxnType | undefined> = { all: undefined, wallets: "WALLET_ALLOCATION", beneficiaries: "TRANSFER_OUT" };
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ act?: string; q?: string }> }) {
   const user = await requireVerifiedUser();
-  const d = await dashboard(user.id);
+  const sp = await searchParams;
+  const act = sp.act && sp.act in ACT ? sp.act : "all";
+  const [d, flow, thisMonth, lastMonth, activity] = await Promise.all([
+    dashboard(user.id),
+    cashFlow(user.id, 9),
+    salaryForMonth(user.id, 0),
+    salaryForMonth(user.id, 1),
+    listTransactions(user.id, { type: ACT[act], q: sp.q || undefined, pageSize: 5 }),
+  ]);
   const kycOk = d.user.kycStatus === "APPROVED";
   const activeRules = d.rules.filter((r) => r.status === "ACTIVE");
-  const hour = Number(new Date().toLocaleString("en-NG", { timeZone: "Africa/Lagos", hour: "numeric", hour12: false }));
-  const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const tz = d.user.timezone || "Africa/Lagos";
+  const hour = Number(new Date().toLocaleString("en-NG", { timeZone: tz, hour: "numeric", hour12: false }));
+  const greet = hour < 12 ? "Good Morning" : hour < 17 ? "Good Afternoon" : "Good Evening";
+  const now = new Date();
+  const weekday = now.toLocaleDateString("en-NG", { timeZone: tz, weekday: "long" });
+  const day = Number(now.toLocaleDateString("en-NG", { timeZone: tz, day: "numeric" }));
+  const ord = day % 10 === 1 && day !== 11 ? "st" : day % 10 === 2 && day !== 12 ? "nd" : day % 10 === 3 && day !== 13 ? "rd" : "th";
+  const dateLine = `${now.toLocaleDateString("en-NG", { timeZone: tz, month: "long" })} ${day}${ord}, ${now.toLocaleDateString("en-NG", { timeZone: tz, year: "numeric" })}`;
+
   const lastAlloc = d.lastExec?.allocatedMinor ?? 0n;
+  const base = d.lastExec?.baseMinor ?? 0n;
+  const pct = base > 0n ? Number((lastAlloc * 100n) / base) : 0;
   const walletAlloc = d.lastExec?.items.filter((i) => i.destinationType === "WALLET" && i.status === "SUCCESS").reduce((s, i) => s + i.allocatedMinor, 0n) ?? 0n;
   const benAlloc = d.lastExec?.items.filter((i) => i.destinationType === "BENEFICIARY" && ["SUCCESS", "PENDING"].includes(i.status)).reduce((s, i) => s + i.allocatedMinor, 0n) ?? 0n;
-  const base = d.lastExec?.availableMinor ?? 0n;
-  const pct = base > 0n ? Number((lastAlloc * 100n) / base) : 0;
-
-  const steps = [
-    { done: !!d.user.emailVerifiedAt, label: "Verify your email", href: "/settings" },
-    { done: !!d.user.country && !!d.user.phone, label: "Set up your profile", href: "/onboarding" },
-    { done: kycOk, label: "Verify your identity (BVN/NIN + selfie)", href: "/onboarding" },
-    { done: d.account?.status === "ACTIVE", label: "Get your salary account", href: "/onboarding" },
-    { done: !!d.user.salaryDay, label: "Set your expected salary date", href: "/settings" },
-    { done: d.wallets.length > 0, label: "Create a wallet", href: "/destinations/wallets/new" },
-    { done: d.rules.length > 0, label: "Create a split rule", href: "/rules/new" },
-  ];
-  const setupDone = steps.every((s) => s.done);
+  const remaining = d.lastExec?.remainingMinor ?? 0n;
+  const avail = d.lastExec?.availableMinor ?? 0n;
+  const leftPct = avail > 0n ? Number((remaining * 100n) / avail) : 0;
+  const growth = lastMonth > 0n ? Math.round(Number(((thisMonth - lastMonth) * 1000n) / lastMonth)) / 10 : null;
+  const fundsAvailable = d.salary > 0n;
   const runDisabled = !kycOk ? "Verify your identity first" : !activeRules.length ? "Activate a rule first" : d.salary <= 0n ? "No unallocated salary funds" : undefined;
+  const setupSteps = { income: !!d.user.salaryDay, wallets: d.wallets.length > 0, recipients: (await countBeneficiaries(user.id)) > 0, rules: d.rules.length > 0 };
+  const setupDone = Object.values(setupSteps).every(Boolean);
+  const actHref = (k: string) => `/dashboard?${new URLSearchParams({ ...(k !== "all" ? { act: k } : {}), ...(sp.q ? { q: sp.q } : {}) })}#activity`;
 
   return (
-    <div className="space-y-6 pt-6">
-      <section className="relative overflow-hidden rounded-[var(--radius-card)] bg-navy px-6 py-8 text-white sm:px-9 sm:py-10">
-        <div className="absolute -right-24 -top-24 size-96 rounded-full bg-brand/25 blur-3xl" aria-hidden />
-        <div className="relative flex flex-wrap items-end justify-between gap-6">
-          <div>
-            <h1 className="text-3xl font-medium sm:text-4xl">{greet}, {d.user.firstName}!</h1>
-            <p className="mt-2 text-white/70">{new Date().toLocaleDateString("en-NG", { timeZone: "Africa/Lagos", weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
-            {d.notifications[0] && <p className="mt-4 max-w-xl rounded-2xl bg-white/10 px-4 py-3 text-sm"><span className="font-medium">{d.notifications[0].title}:</span> {d.notifications[0].body}</p>}
+    <>
+      {/* ------------------------------------------------ hero (full bleed) */}
+      <section className="hero-dark relative left-1/2 -ml-[50vw] w-screen overflow-hidden text-white">
+        <div className="pointer-events-none absolute inset-0 opacity-60 [background:radial-gradient(40%_60%_at_80%_20%,rgba(255,255,255,0.06),transparent_70%)]" aria-hidden />
+        <div className="relative mx-auto flex min-h-[300px] max-w-[1440px] flex-wrap items-end justify-between gap-6 px-4 pb-[30px] pt-10 sm:min-h-[340px] sm:px-9 lg:pt-[98px]">
+          <div className="min-w-0 lg:w-[480px]">
+            <h1 className="text-[32px] leading-tight sm:text-[38px]">{greet}, {d.user.firstName}!</h1>
+            <p className="mt-2 text-[17px] text-white/80"><span className="font-semibold text-white">{weekday},</span> {dateLine}</p>
+          </div>
+          <div className="absolute left-[38.7%] top-[98px] hidden lg:block">
+            <NotificationCarousel items={d.notifications.slice(0, 3).map((n) => ({ id: n.id, title: n.title, body: n.body }))} />
           </div>
           <div className="flex flex-wrap gap-3">
-            <a href="/api/statements?format=pdf" className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/30 px-4 text-sm hover:bg-white/10"><Download size={16} /> Export statement</a>
-            <LinkButton href="/destinations/wallets/new"><Plus size={16} /> Create wallet</LinkButton>
+            <ExportButton />
+            <LinkButton href="/destinations/wallets/new" size="xl" className="px-6"><Plus size={18} /> Create Wallet</LinkButton>
           </div>
         </div>
       </section>
 
       {!kycOk && (
-        <Alert tone="warn">
-          <b>Money movement is locked.</b> You can set up wallets, beneficiaries and draft rules now — transfers and automatic splits unlock once your identity is verified. <Link href="/onboarding" className="font-medium underline">Complete verification</Link>
+        <Alert tone="warn" className="mt-5">
+          <b>Money movement is locked.</b> You can set up wallets, beneficiaries and draft rules now. Transfers and automatic splits unlock once your identity is verified. <Link href="/onboarding" className="font-medium underline">Complete verification</Link>
         </Alert>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-4">
-        <Card className="p-6">
-          <p className="text-sm text-muted">Salary account balance</p>
-          <p className="tabular mt-2 text-3xl font-semibold">{naira(d.salary)}</p>
+      {/* ------------------------------------------------ balance + KPIs */}
+      <div className="mt-[22px] grid gap-5 lg:grid-cols-[1fr_293px_293px_293px]">
+        <div className="flex flex-col justify-center py-2">
+          <p className="text-[15px] text-ink">Salary Account Balance</p>
+          <div className="mt-3"><Balance minor={d.salary.toString()} /></div>
           {d.account?.status === "ACTIVE" ? (
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 text-sm text-muted">
-              <span>{d.account.accountNumber} · {d.account.bankName}</span>
-              <CopyButton text={`${d.account.accountNumber} — ${d.account.bankName} — ${d.account.accountName}`} label="Copy details" />
+            <div className="mt-3 flex flex-wrap gap-x-3 text-[13px] text-muted">
+              <span>{maskAcct(d.account.accountNumber!).replace("••••", "*****")} {d.user.firstName} {d.user.lastName}</span>
+              <AccountDetails account={{ accountNumber: d.account.accountNumber!, bankName: d.account.bankName ?? "", accountName: d.account.accountName ?? "" }} />
             </div>
-          ) : d.account?.status === "FAILED" || d.account?.status === "PENDING" ? (
-            <div className="mt-2 space-y-2 text-sm text-warn"><p>Salary account setup {d.account.status === "PENDING" ? "is pending" : "failed"}.</p><RetryProvision /></div>
-          ) : <p className="mt-2 text-sm text-muted">Available after identity verification.</p>}
-        </Card>
-        <Kpi href="/rules" title="Last split allocation" value={naira(lastAlloc)} left={`${activeRules.length} active rule${activeRules.length === 1 ? "" : "s"}`} right={d.lastExec ? `${pct}% of salary` : "No splits yet"} />
-        <Kpi href="/destinations" title="Total in wallets" value={naira(d.walletTotal)} left={`${d.wallets.length} wallet${d.wallets.length === 1 ? "" : "s"}`} right={`${d.wallets.filter((w) => w.targetMinor).length} with targets`} />
-        <Kpi href="/settings" title="Expected next salary" value={d.nextSalary ? fmtDate(d.nextSalary) : "Not set"} left="Split runs when salary arrives" right={<Badge status={d.salary > 0n && activeRules.length ? "ACTIVE" : "PENDING"} className="whitespace-nowrap" />} />
+          ) : d.account ? (
+            <div className="mt-3 space-y-2 text-[13px] text-warn"><p>Salary account setup {d.account.status === "PENDING" ? "is pending" : "failed"}.</p><RetryProvision /></div>
+          ) : <p className="mt-3 text-[13px] text-muted">Your salary account is created after identity verification. <Link href="/onboarding" className="text-brand underline">Verify now</Link></p>}
+        </div>
+        <Kpi href="/rules" title="Split Allocation" value={naira(lastAlloc)} left={`${activeRules.length} Split${activeRules.length === 1 ? "" : "s"} running`} right={d.lastExec ? <span className="flex items-center gap-1 text-success"><ArrowUp size={15} /> {pct}% of Salary</span> : <span className="text-muted">No splits yet</span>} />
+        <Kpi href="/destinations" title="Total in Wallets" value={naira(d.walletTotal)} left="Active wallets" right={<span className="text-ink">{d.wallets.filter((w) => w.targetMinor).length} Target wallets</span>} />
+        <Kpi href="/settings" title="Expected Next Split Run" value={d.nextSalary ? d.nextSalary.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "Not set"} left="Fund Status:" right={<Badge status={fundsAvailable ? "SUCCESS" : "UNAVAILABLE"} label={fundsAvailable ? "Available" : "Unavailable"} />} />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-        <div className="space-y-6">
-          {!setupDone && (
-            <Card className="p-6">
-              <h2 className="text-lg font-medium">Finish setting up</h2>
-              <p className="text-sm text-muted">{steps.filter((s) => s.done).length} of {steps.length} done</p>
-              <ol className="mt-4 grid gap-2 sm:grid-cols-2">
-                {steps.map((s) => (
-                  <li key={s.label}>
-                    <Link href={s.href} className="flex items-center gap-3 rounded-xl border border-line px-4 py-3 text-sm hover:bg-canvas">
-                      {s.done ? <CheckCircle2 size={18} className="text-success" aria-label="Done" /> : <Circle size={18} className="text-muted" aria-label="To do" />}
-                      <span className={s.done ? "text-muted line-through" : ""}>{s.label}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ol>
-            </Card>
-          )}
-
-          <Card>
-            <div className="flex flex-wrap items-center justify-between gap-3 p-6 pb-4">
-              <h2 className="text-lg font-medium">Recent activity & splits</h2>
-              <div className="flex items-center gap-2"><RunNowButton disabledReason={runDisabled} /></div>
-            </div>
-            {d.recent.length ? (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="border-y border-line bg-canvas text-left text-xs text-muted"><tr><th className="px-6 py-3 font-medium">Description</th><th className="px-3 py-3 font-medium">Category</th><th className="px-3 py-3 font-medium">Date</th><th className="px-3 py-3 font-medium">Status</th><th className="px-6 py-3 text-right font-medium">Amount</th></tr></thead>
-                  <tbody>
-                    {d.recent.map((t) => (
-                      <tr key={t.id} className="border-b border-line last:border-0 hover:bg-canvas">
-                        <td className="px-6 py-3"><Link href={`/transactions/${t.id}`} className="hover:underline">{t.description}</Link></td>
-                        <td className="px-3 py-3"><span className="rounded-lg border border-line px-2 py-0.5 text-xs">{t.category}</span></td>
-                        <td className="px-3 py-3 text-muted">{fmtDateTime(t.createdAt)}</td>
-                        <td className="px-3 py-3"><Badge status={t.status} /></td>
-                        <td className={`tabular px-6 py-3 text-right font-medium ${t.direction === "in" ? "text-success" : t.direction === "out" ? "text-ink" : "text-brand"}`}>{t.direction === "in" ? "+" : t.direction === "out" ? "−" : ""}{naira(t.amountMinor)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="flex justify-end p-4"><Link href="/transactions" className="inline-flex items-center gap-1 text-sm text-brand hover:underline">View full ledger <ArrowRight size={14} /></Link></div>
-              </div>
-            ) : <Empty title="No salary received yet" body={d.account?.status === "ACTIVE" ? "Share your salary account details with your employer. Your split will run automatically when salary arrives." : "Once your salary account is ready, incoming salary and splits will appear here."} />}
-          </Card>
-        </div>
-
-        <div className="space-y-6">
-          <Card className="p-6">
-            <div className="flex items-center justify-between"><h2 className="text-lg font-medium">Salary partition</h2><Link href="/rules" className="text-sm text-brand hover:underline">See rules</Link></div>
-            {d.lastExec ? (
-              <>
-                <Donut parts={[{ v: walletAlloc, c: "#1e9bf0" }, { v: benAlloc, c: "#0b1424" }, { v: d.lastExec.remainingMinor, c: "#e6ebf2" }]} center={naira(d.lastExec.remainingMinor)} sub={`${base > 0n ? Number((d.lastExec.remainingMinor * 100n) / base) : 0}% left`} />
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="border-l-2 border-brand pl-3"><p className="tabular font-semibold">{naira(walletAlloc)}</p><p className="text-muted">Wallets</p></div>
-                  <div className="border-l-2 border-navy pl-3"><p className="tabular font-semibold">{naira(benAlloc)}</p><p className="text-muted">Beneficiaries</p></div>
+      {/* ------------------------------------------------ main panel */}
+      <Panel className="mt-3 sm:-mx-4">
+        <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
+          <div className="min-w-0 space-y-4">
+            <div className="px-2 pt-3 sm:px-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-[15px]">Salary Allocation &amp; Split Cash Flow</h2>
+                  <p className="mt-3 flex flex-wrap items-baseline gap-2">
+                    <span className="tabular text-[30px] font-medium leading-none">{naira(thisMonth)}</span>
+                    {growth !== null && <span className={`text-xs ${growth >= 0 ? "text-success" : "text-danger"}`}>{growth >= 0 ? "+" : ""}{growth}%</span>}
+                    <span className="text-xs text-muted">{growth !== null ? "from last month" : "salary this month"}</span>
+                  </p>
                 </div>
-                <Link href={`/rules/history/${d.lastExec.id}`} className="mt-4 inline-flex items-center gap-1 text-sm text-brand hover:underline">Last split · {fmtDate(d.lastExec.createdAt)} <Badge status={d.lastExec.status} /></Link>
-              </>
-            ) : <Empty title="No splits yet" body="Your first split runs when salary arrives in your salary account." />}
-          </Card>
+                <div className="flex items-center gap-5 text-sm">
+                  <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-brand" /> Wallets</span>
+                  <span className="flex items-center gap-2"><span className="size-1.5 rounded-full bg-ink" /> Beneficiaries</span>
+                  <span className="flex h-10 items-center gap-3 rounded-xl border border-line bg-panel-2 px-4 text-sm">{flow[0].label} – {flow[flow.length - 1].label} <ChevronDown size={16} /></span>
+                </div>
+              </div>
+              <div className="mt-4"><CashFlowChart data={flow.map((m) => ({ month: m.month, label: m.label, wallets: m.wallets.toString(), beneficiaries: m.beneficiaries.toString() }))} /></div>
+            </div>
 
-          <Card className="p-6">
-            <div className="flex items-center justify-between"><h2 className="text-lg font-medium">Wallets</h2><Link href="/destinations" className="text-sm text-brand hover:underline">All</Link></div>
-            {d.wallets.length ? (
-              <ul className="mt-4 space-y-2">
-                {d.wallets.slice(0, 5).map((w, i) => (
-                  <li key={w.id}>
-                    <Link href={`/destinations/wallets/${w.id}`} className={`flex items-center gap-3 rounded-2xl p-3 ${["bg-success-50", "bg-danger-50", "bg-brand-50", "bg-warn-50"][i % 4]}`}>
-                      <span className="grid size-10 place-items-center rounded-xl bg-white text-brand"><WalletIcon size={18} /></span>
-                      <span className="flex-1"><span className="block font-medium">{w.name}</span><span className="text-xs text-muted">{w.category}</span></span>
-                      <span className="tabular font-semibold">{naira(w.balanceMinor)}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : <Empty title="No wallets yet" body="Create a wallet for savings, rent or emergencies." action={<LinkButton href="/destinations/wallets/new" size="sm">Create wallet</LinkButton>} />}
-          </Card>
+            <div id="activity">
+              <TablePanel
+                title="Recent Activity & Splits"
+                tools={<><SearchBox defaultValue={sp.q} hidden={{ act: act !== "all" ? act : undefined }} /><Segmented label="Activity filter" active={act} items={[{ key: "all", label: "All Transactions", href: actHref("all") }, { key: "wallets", label: "Wallets", href: actHref("wallets") }, { key: "beneficiaries", label: "Beneficiaries", href: actHref("beneficiaries") }]} /></>}
+                footer={<><span>Showing {activity.rows.length} of {activity.total} activity entries</span><span className="flex items-center gap-4">{kycOk && <RunNowButton disabledReason={runDisabled} />}<Link href="/transactions" className="flex items-center gap-1 text-brand hover:underline">View Full Ledger <ChevronRight size={16} /></Link></span></>}
+              >
+                {activity.rows.length ? (
+                  <Table head={<><th className={th + " w-10"}><Checkbox aria-label="Select all" /></th><th className={th}>Destination / Rule</th><th className={th}>Category</th><th className={th}>Date</th><th className={th}>Status</th><th className={th}>Amount</th><th className={th + " w-10"}><span className="sr-only">Open</span></th></>}>
+                    {activity.rows.map((t) => {
+                      const k = flowKind(t);
+                      return (
+                        <tr key={t.id} className="hover:bg-panel-2">
+                          <td className={td}><Checkbox aria-label={`Select ${t.description}`} /></td>
+                          <td className={td}><span className="flex items-center gap-3"><FlowIcon kind={k} /><span className="truncate">{t.direction === "out" || t.type === "TRANSFER_REVERSAL" ? t.description : t.type === "SALARY_IN" ? t.description : `${t.destination} Wallet`}</span></span></td>
+                          <td className={td}><CategoryPill>{t.category}</CategoryPill></td>
+                          <td className={td + " whitespace-nowrap"}>{fmtDate(t.createdAt)}</td>
+                          <td className={td}><Badge status={t.status} /></td>
+                          <td className={`${td} tabular whitespace-nowrap ${amountClass(k)}`}>{k === "in" ? "+" : "-"}{naira(t.amountMinor)}</td>
+                          <td className={td}><Link href={`/transactions/${t.id}`} aria-label={`Open ${t.description}`} className="grid size-8 place-items-center rounded-full hover:bg-panel"><ChevronRight size={18} /></Link></td>
+                        </tr>
+                      );
+                    })}
+                  </Table>
+                ) : <Empty title={sp.q || act !== "all" ? "No matching activity" : "No salary received yet"} body={sp.q || act !== "all" ? "Try a different search or filter." : d.account?.status === "ACTIVE" ? "Share your salary account details with your employer. Your split runs automatically when salary arrives." : "Once your salary account is ready, incoming salary and splits will appear here."} />}
+              </TablePanel>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <section className="rounded-[20px] border border-line-2 bg-panel-2 p-2">
+              <div className="flex items-center justify-between px-4 py-3"><h2 className="text-lg">Salary Partition</h2><Link href="/rules" className="flex items-center gap-1 text-lg text-brand hover:underline">See rules <ChevronRight size={18} /></Link></div>
+              <div className="rounded-2xl border border-line bg-white p-5">
+                {d.lastExec ? (
+                  <>
+                    <Donut parts={[{ v: walletAlloc, c: "#33a7f5" }, { v: benAlloc, c: "#171918" }, { v: remaining, c: "#e4e4e4" }]} center={naira(remaining)} sub={`${leftPct}% Left`} />
+                    <div className="mt-6 grid grid-cols-2 gap-4">
+                      <Link href="/destinations" className="flex items-center justify-between border-l-[3px] border-brand pl-3 hover:opacity-80"><span><span className="tabular block text-lg">{naira(walletAlloc)}</span><span className="text-[13px] text-muted">Wallets</span></span><ChevronRight size={18} /></Link>
+                      <Link href="/destinations?tab=beneficiaries" className="flex items-center justify-between border-l-[3px] border-ink pl-3 hover:opacity-80"><span><span className="tabular block text-lg">{naira(benAlloc)}</span><span className="text-[13px] text-muted">Beneficiaries</span></span><ChevronRight size={18} /></Link>
+                    </div>
+                    <Link href={`/rules/history/${d.lastExec.id}`} className="mt-4 flex items-center gap-2 text-[13px] text-brand hover:underline">Last split · {fmtDate(d.lastExec.createdAt)} <Badge status={d.lastExec.status} /></Link>
+                  </>
+                ) : <Empty title="No splits yet" body="Your first split runs when salary arrives in your salary account." />}
+              </div>
+            </section>
+
+            <section className="rounded-[20px] border border-line-2 bg-panel-2 p-2">
+              <Link href="/destinations" className="flex items-center justify-between px-4 py-3 hover:text-brand"><h2 className="text-lg">Wallets</h2><ChevronRight size={20} /></Link>
+              {d.wallets.length ? (
+                <ul className="space-y-1">
+                  {d.wallets.slice(0, 4).map((w, i) => (
+                    <li key={w.id}>
+                      <Link href={`/destinations/wallets/${w.id}`} className={`flex items-center gap-3 rounded-2xl bg-gradient-to-b ${walletTone(i).soft} px-3.5 py-3.5 hover:brightness-[0.98]`}>
+                        <WalletIcon category={w.category} index={i} />
+                        <span className="min-w-0 flex-1"><span className="block truncate text-[15px]">{w.name}</span><span className="text-[13px] text-muted">{w.category}</span></span>
+                        <span className="tabular text-lg">{naira(w.balanceMinor)}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : <div className="rounded-2xl border border-line bg-white"><Empty title="No wallets yet" body="Create a wallet for savings, rent or emergencies." action={<LinkButton href="/destinations/wallets/new" size="sm">Create wallet</LinkButton>} /></div>}
+            </section>
+          </div>
         </div>
-      </div>
-    </div>
+      </Panel>
+
+      {!setupDone && <SetupWizard steps={setupSteps} salaryDay={d.user.salaryDay} />}
+    </>
   );
+}
+
+async function countBeneficiaries(userId: string) {
+  const { prisma } = await import("@/server/db");
+  return prisma.beneficiary.count({ where: { userId, archivedAt: null } });
 }
 
 function Kpi({ href, title, value, left, right }: { href: string; title: string; value: string; left: string; right: React.ReactNode }) {
   return (
-    <Link href={href} className="block rounded-[var(--radius-card)] border border-line bg-gradient-to-b from-brand-50 to-white p-6 hover:border-brand/40">
-      <p className="flex items-center justify-between text-sm">{title}<ArrowRight size={16} className="text-muted" /></p>
-      <p className="tabular mt-3 text-2xl font-semibold">{value}</p>
-      <p className="mt-2 flex items-center justify-between gap-2 text-xs text-muted"><span>{left}</span><span>{right}</span></p>
+    <Link href={href} className="kpi-card flex min-h-[160px] flex-col rounded-2xl p-5 hover:ring-1 hover:ring-brand/30">
+      <p className="flex items-center justify-between text-[15px]">{title}<ChevronRight size={18} /></p>
+      <p className="tabular mt-auto text-[30px] font-medium leading-tight">{value}</p>
+      <p className="mt-3 flex items-center justify-between gap-2 text-sm text-muted"><span>{left}</span>{right}</p>
     </Link>
   );
 }
 
 function Donut({ parts, center, sub }: { parts: { v: bigint; c: string }[]; center: string; sub: string }) {
   const total = parts.reduce((s, p) => s + p.v, 0n) || 1n;
-  const r = 70, C = 2 * Math.PI * r;
+  const r = 84, C = 2 * Math.PI * r, gap = 6;
   let off = 0;
   return (
-    <div className="relative mx-auto my-6 size-48">
-      <svg viewBox="0 0 180 180" className="-rotate-90" role="img" aria-label={`Salary remaining ${center}`}>
-        <circle cx="90" cy="90" r={r} fill="none" stroke="#f1f5f9" strokeWidth="16" />
-        {parts.map((p, i) => { const len = (Number(p.v) / Number(total)) * C; const el = <circle key={i} cx="90" cy="90" r={r} fill="none" stroke={p.c} strokeWidth="16" strokeDasharray={`${len} ${C - len}`} strokeDashoffset={-off} />; off += len; return el; })}
+    <div className="relative mx-auto mt-2 size-[200px]">
+      <svg viewBox="0 0 200 200" className="-rotate-90" role="img" aria-label={`Salary remaining ${center}, ${sub}`}>
+        <circle cx="100" cy="100" r="66" fill="none" stroke="#d6d6d6" strokeDasharray="3 3" />
+        {parts.filter((p) => p.v > 0n).map((p, i) => { const len = Math.max(0, (Number(p.v) / Number(total)) * C - gap); const el = <circle key={i} cx="100" cy="100" r={r} fill="none" stroke={p.c} strokeWidth="12" strokeLinecap="round" strokeDasharray={`${len} ${C - len}`} strokeDashoffset={-off} />; off += len + gap; return el; })}
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center"><span className="text-xs text-muted">Salary remaining</span><span className="tabular text-xl font-semibold">{center}</span><span className="text-xs text-success">{sub}</span></div>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center"><span className="text-[11px] text-ink">Salary Remaining</span><span className="tabular mt-1 text-[22px] font-semibold">{center}</span><span className="mt-1.5 text-[11px] text-success">{sub}</span></div>
     </div>
   );
 }

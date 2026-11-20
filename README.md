@@ -127,6 +127,11 @@ The smoke script sends the same pay-in three times concurrently, then checks the
 
 In the sandbox, Dojah returns fixed test identities, so a name mismatch is shown but does not block verification.
 
+Flutterwave sandbox limits:
+- Card pay-ins are capped at **₦50,000** per charge.
+- Test pay-ins do not fund the merchant payout balance. Top up the test balance in the Flutterwave dashboard (test mode → Balances), otherwise transfers fail with "Insufficient funds in customer wallet". The app handles that failure by returning the money to the salary account.
+- Webhooks can't reach `localhost`. Locally, transfer statuses are updated by calling the reconcile job: `curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/reconcile`.
+
 ## Deploying (Vercel)
 
 1. Push the repo to GitHub and import it in Vercel.

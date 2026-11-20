@@ -169,3 +169,36 @@ export async function dashboard(userId: string) {
     nextSalary: nextSalaryDate(user.salaryDay, user.timezone),
   };
 }
+
+export type CashFlowMonth = { month: string; label: string; wallets: bigint; beneficiaries: bigint };
+
+/** Last `months` months of net money moved to wallets (up) and to beneficiaries (down), Lagos time. */
+export async function cashFlow(userId: string, months = 9): Promise<CashFlowMonth[]> {
+  const rows = await prisma.$queryRaw<{ m: string; type: LedgerTxnType; amt: bigint }[]>`
+    SELECT to_char(date_trunc('month', (t."createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Africa/Lagos'), 'YYYY-MM') AS m, t.type, SUM(e."amountMinor")::bigint AS amt
+    FROM "LedgerTransaction" t JOIN "LedgerEntry" e ON e."transactionId" = t.id
+    WHERE t."userId" = ${userId} AND e."amountMinor" > 0
+      AND t.type IN ('WALLET_ALLOCATION','WALLET_TO_SALARY','TRANSFER_OUT','TRANSFER_REVERSAL')
+      AND (t."createdAt" AT TIME ZONE 'UTC') AT TIME ZONE 'Africa/Lagos' >= date_trunc('month', now() AT TIME ZONE 'Africa/Lagos') - make_interval(months => ${months - 1}::int)
+    GROUP BY 1, 2`;
+  const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Lagos" }));
+  const out: CashFlowMonth[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const sum = (t: LedgerTxnType) => rows.filter((r) => r.m === key && r.type === t).reduce((s, r) => s + BigInt(r.amt), 0n);
+    const w = sum("WALLET_ALLOCATION") - sum("WALLET_TO_SALARY");
+    const b = sum("TRANSFER_OUT") - sum("TRANSFER_REVERSAL");
+    out.push({ month: key, label: d.toLocaleDateString("en-NG", { month: "short" }) + " " + String(d.getFullYear()).slice(2), wallets: w > 0n ? w : 0n, beneficiaries: b > 0n ? b : 0n });
+  }
+  return out;
+}
+
+/** Confirmed salary received in a calendar month (Lagos), offset 0 = this month. */
+export async function salaryForMonth(userId: string, offset = 0) {
+  const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Lagos" }));
+  const start = new Date(Date.UTC(now.getFullYear(), now.getMonth() - offset, 1) - 3600_000);
+  const end = new Date(Date.UTC(now.getFullYear(), now.getMonth() - offset + 1, 1) - 3600_000);
+  const r = await prisma.payin.aggregate({ where: { userId, status: "CONFIRMED", receivedAt: { gte: start, lt: end } }, _sum: { amountMinor: true } });
+  return r._sum.amountMinor ?? 0n;
+}
