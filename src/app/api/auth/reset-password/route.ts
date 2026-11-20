@@ -12,7 +12,7 @@ export const POST = route(async (req) => {
   const t = await consumeToken(b.token, "RESET_PASSWORD");
   if (!t) throw new HttpError(400, "This reset link is invalid or has expired.");
   await prisma.$transaction([
-    prisma.user.update({ where: { id: t.userId }, data: { passwordHash: await hashPassword(b.password) } }),
+    prisma.user.update({ where: { id: t.userId }, data: { passwordHash: await hashPassword(b.password), passwordChangedAt: new Date() } }),
     prisma.session.updateMany({ where: { userId: t.userId, revokedAt: null }, data: { revokedAt: new Date() } }), // sign out everywhere
   ]);
   await audit(t.userId, "auth.password_reset", { type: "User", id: t.userId });

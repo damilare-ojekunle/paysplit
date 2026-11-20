@@ -10,7 +10,9 @@ import { fmtDateTime } from "@/lib/format";
 
 type N = { id: string; title: string; body: string; createdAt: string; readAt: string | null };
 
-export function Avatar({ name, size = 24 }: { name: string; size?: number }) {
+export function Avatar({ name, size = 24, src }: { name: string; size?: number; src?: string | null }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  if (src) return <img src={src} alt="" className="shrink-0 rounded-full object-cover" style={{ width: size, height: size }} />;
   const initials = name.split(/\s+/).map((s) => s[0]).join("").slice(0, 2).toUpperCase();
   return (
     <span aria-hidden className="grid shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand to-[#1b6fa8] font-semibold text-white" style={{ width: size, height: size, fontSize: Math.max(9, size * 0.38) }}>
@@ -19,7 +21,7 @@ export function Avatar({ name, size = 24 }: { name: string; size?: number }) {
   );
 }
 
-export function TopNav({ name, links, searchHref = "/transactions" }: { name: string; links: { href: string; label: string }[]; searchHref?: string }) {
+export function TopNav({ name, links, searchHref = "/transactions", avatar }: { name: string; links: { href: string; label: string }[]; searchHref?: string; avatar?: string | null }) {
   const path = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState<null | "bell" | "user" | "search">(null);
@@ -94,7 +96,7 @@ export function TopNav({ name, links, searchHref = "/transactions" }: { name: st
           </div>
           <div className="relative">
             <button onClick={() => setOpen(open === "user" ? null : "user")} aria-expanded={open === "user"} aria-label="Account menu" className="flex h-10 items-center gap-2 rounded-xl border border-line bg-white pl-3 pr-3.5 text-sm hover:bg-panel-2">
-              <Avatar name={name} size={23} />
+              <Avatar name={name} size={23} src={avatar} />
               <span className="max-w-24 truncate">{name}</span>
             </button>
             {open === "user" && (

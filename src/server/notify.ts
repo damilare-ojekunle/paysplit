@@ -43,9 +43,13 @@ export async function notify(userId: string, opts: { type: string; title: string
     throw e;
   }
   if (!opts.email) return;
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, notifyEmail: true } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, notifyEmail: true, notifyPrefs: true } });
   if (!user) return;
-  if (!user.notifyEmail && !MANDATORY.has(opts.type)) return;
+  if (!MANDATORY.has(opts.type)) {
+    if (!user.notifyEmail) return;
+    const emailPrefs = ((user.notifyPrefs ?? {}) as { email?: Record<string, boolean> }).email ?? {};
+    if (emailPrefs[opts.type] === false) return; // per-category opt-out
+  }
   await sendEmail(user.email, opts.email.subject, opts.email.html);
 }
 

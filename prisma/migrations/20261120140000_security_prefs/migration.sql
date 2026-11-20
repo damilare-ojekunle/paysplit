@@ -1,0 +1,2 @@
+ALTER TABLE "User" ADD COLUMN "passwordChangedAt" TIMESTAMP(3);
+ALTER TABLE "User" ADD COLUMN "notifyPrefs" JSONB;

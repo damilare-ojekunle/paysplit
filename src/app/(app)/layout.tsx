@@ -19,7 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <>
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-white focus:px-3 focus:py-2">Skip to content</a>
-      <TopNav name={user.firstName} links={LINKS} />
+      <TopNav name={user.firstName} links={LINKS} avatar={user.avatarUrl} />
       <main id="main" className="mx-auto max-w-[1440px] px-4 pb-16 sm:px-9">{children}</main>
     </>
   );

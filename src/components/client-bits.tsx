@@ -9,8 +9,8 @@ import { Alert, Badge, Button } from "./ui";
 export function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
   const [ok, setOk] = useState(false);
   return (
-    <button type="button" onClick={async () => { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 1500); }} className="inline-flex items-center gap-1 text-sm text-brand hover:underline" aria-live="polite">
-      {ok ? <Check size={14} /> : <Copy size={14} />}{ok ? "Copied" : label}
+    <button type="button" onClick={async () => { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 1500); }} className="inline-flex items-center gap-1 text-sm text-brand hover:underline" aria-live="polite" aria-label={label ? undefined : ok ? "Copied" : "Copy"} title={label ? undefined : "Copy"}>
+      {ok ? <Check size={label ? 14 : 18} /> : <Copy size={label ? 14 : 18} />}{label && (ok ? "Copied" : label)}
     </button>
   );
 }

@@ -15,6 +15,7 @@ const Schema = z.object({
   notifyEmail: z.boolean().optional(),
   employer: z.string().trim().max(80).nullable().optional(),
   monthlySalary: amountMajor.nullable().optional(),
+  notifyPrefs: z.object({ email: z.record(z.enum(["salary", "split", "transfer"]), z.boolean()).optional(), inApp: z.record(z.enum(["salary", "split", "transfer"]), z.boolean()).optional() }).optional(),
   avatarUrl: z.string().max(200_000).regex(/^data:image\/(png|jpeg|webp);base64,/, "Upload a PNG, JPEG or WebP image").nullable().optional(),
 });
 
