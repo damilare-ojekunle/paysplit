@@ -100,7 +100,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <div className="px-2 pt-3 sm:px-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-[15px]">Salary Allocation &amp; Split Cash Flow</h2>
+                  <h2 className="text-[15px]">Salary Allocation &amp; Split Cash Flow <Link href="/analytics" className="ml-2 text-xs text-brand hover:underline">View analytics</Link></h2>
                   <p className="mt-3 flex flex-wrap items-baseline gap-2">
                     <span className="tabular text-[30px] font-medium leading-none">{naira(thisMonth)}</span>
                     {growth !== null && <span className={`text-xs ${growth >= 0 ? "text-success" : "text-danger"}`}>{growth >= 0 ? "+" : ""}{growth}%</span>}

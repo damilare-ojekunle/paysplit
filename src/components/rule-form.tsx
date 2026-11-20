@@ -103,7 +103,7 @@ export function RuleActions({ id, status, kycOk, edit }: { id: string; status: s
       {status === "ACTIVE"
         ? <button className={icon} disabled={busy} aria-label="Pause rule" title="Pause rule" onClick={() => act(() => api(`/api/rules/${id}`, { method: "PATCH", body: { status: "PAUSED" } }))}><Columns2 size={18} strokeWidth={1.7} /></button>
         : <button className={icon} disabled={busy || !kycOk} aria-label={status === "DRAFT" ? "Activate rule" : "Resume rule"} title={!kycOk ? "Verify your identity first" : status === "DRAFT" ? "Activate rule" : "Resume rule"} onClick={() => act(() => api(`/api/rules/${id}`, { method: "PATCH", body: { status: "ACTIVE" } }))}><Play size={17} strokeWidth={1.7} /></button>}
-      {edit}
+      <span className="contents">{edit}</span>
       <button className={icon + " text-[#e5484d]"} disabled={busy} aria-label="Delete rule" title="Delete rule" onClick={() => setConfirmDel(true)}><Trash2 size={18} strokeWidth={1.7} /></button>
       {err && !confirmDel && <span role="alert" className="text-xs text-danger">{err}</span>}
       <Modal open={confirmDel} onClose={() => setConfirmDel(false)} size="sm" icon={<Trash2 size={18} className="text-[#e5484d]" />} title="Delete this rule?" description="It will stop running from the next split. Past split records are kept."

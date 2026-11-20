@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/server/db";
 import { requireVerifiedUser } from "@/server/auth";
 import { naira, fmtDateTime } from "@/lib/format";
-import { Badge, Card, PageHeader } from "@/components/ui";
+import { Badge, PageHeader, Panel } from "@/components/ui";
 
 export default async function ExecutionDetail({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireVerifiedUser();
@@ -15,10 +15,10 @@ export default async function ExecutionDetail({ params }: { params: Promise<{ id
     <>
       <PageHeader title={`Split · ${fmtDateTime(e.createdAt)}`} crumbs={[{ href: "/rules", label: "Split Rules" }, { label: "Split detail" }]} action={<Badge status={e.status} className="text-sm" />} />
       <div className="grid gap-4 sm:grid-cols-4">
-        {[["Salary used", e.availableMinor], ["Percentage base", e.baseMinor], ["Allocated", e.allocatedMinor], ["Remaining in salary account", e.remainingMinor]].map(([k, v]) => <Card key={k as string} className="p-5"><p className="text-sm text-muted">{k as string}</p><p className="tabular mt-1 text-xl font-semibold">{naira(v as bigint)}</p></Card>)}
+        {[["Salary used", e.availableMinor], ["Percentage base", e.baseMinor], ["Allocated", e.allocatedMinor], ["Remaining in salary account", e.remainingMinor]].map(([k, v]) => <div key={k as string} className="kpi-card rounded-2xl p-5"><p className="text-[15px]">{k as string}</p><p className="tabular mt-6 text-[28px] font-medium leading-tight">{naira(v as bigint)}</p></div>)}
       </div>
       <p className="mt-4 text-sm text-muted">{e.trigger === "AUTO" ? `Triggered automatically by salary ${e.payin ? `of ${naira(e.payin.amountMinor)}` : ""}.` : "Triggered manually with Run now."} Reference {e.idempotencyKey.split(":")[0].toUpperCase()}-{e.id.slice(-8).toUpperCase()}</p>
-      <Card className="mt-6 overflow-x-auto">
+      <Panel className="mt-6 overflow-x-auto sm:-mx-4"><div className="overflow-hidden rounded-2xl border border-line bg-white">
         <table className="w-full min-w-[760px] text-sm">
           <thead className="border-b border-line bg-canvas text-left text-xs text-muted"><tr><th className="px-6 py-3 font-medium">#</th><th className="px-3 py-3 font-medium">Rule</th><th className="px-3 py-3 font-medium">Destination</th><th className="px-3 py-3 text-right font-medium">Requested</th><th className="px-3 py-3 text-right font-medium">Actual</th><th className="px-3 py-3 font-medium">Status</th><th className="px-6 py-3 font-medium">Details</th></tr></thead>
           <tbody>
@@ -38,7 +38,7 @@ export default async function ExecutionDetail({ params }: { params: Promise<{ id
             })}
           </tbody>
         </table>
-      </Card>
+      </div></Panel>
     </>
   );
 }

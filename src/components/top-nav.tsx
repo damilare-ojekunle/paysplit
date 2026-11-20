@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Bell, LogOut, Search, Settings, X } from "lucide-react";
+import { BarChart3, Bell, LogOut, Search, Settings, X } from "lucide-react";
 import clsx from "clsx";
 import { Logo } from "./logo";
 import { api } from "@/lib/api";
@@ -102,6 +102,7 @@ export function TopNav({ name, links, searchHref = "/transactions", avatar }: { 
             {open === "user" && (
               <div className="absolute right-0 mt-2 w-52 rounded-2xl border border-line bg-white p-1.5 shadow-xl">
                 {links.map((l) => <Link key={l.href} href={l.href} className="block rounded-lg px-3 py-2 text-sm hover:bg-panel-2 md:hidden">{l.label}</Link>)}
+                {!path.startsWith("/admin") && <Link href="/analytics" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-panel-2"><BarChart3 size={15} /> Analytics</Link>}
                 {!path.startsWith("/admin") && <Link href="/settings" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-panel-2"><Settings size={15} /> Profile & settings</Link>}
                 {path.startsWith("/admin") && <Link href="/admin/settings" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-panel-2"><Settings size={15} /> Settings</Link>}
                 <button onClick={async () => { await api("/api/auth/logout", { method: "POST" }).catch(() => {}); router.push(path.startsWith("/admin") ? "/admin/login" : "/login"); router.refresh(); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-danger hover:bg-danger-50"><LogOut size={15} /> Sign out</button>
