@@ -2,13 +2,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Columns2, Play, Plus, RotateCcw, Split, SquarePen, Trash2 } from "lucide-react";
+import { Columns2, Landmark, Play, Plus, RotateCcw, Split, SquarePen, Trash2, Wallet as WalletIcon } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { Modal } from "./client-bits";
 import { Alert, Button, Field, Input, Select } from "./ui";
 
 type Dest = { id: string; name: string; category: string; type: "WALLET" | "BENEFICIARY"; hasRule: boolean; ruleId?: string };
-type Existing = { id: string; name: string; destinationType: "WALLET" | "BENEFICIARY"; destinationId: string; method: "FIXED" | "PERCENT"; value: string; priority: number; status: string };
+type Existing = { id: string; name: string; destinationType: "WALLET" | "BENEFICIARY"; destinationId: string; method: "FIXED" | "PERCENT"; value: string; priority: number; status: string; conditionType?: "ANY" | "MIN_AMOUNT" | "SENDER"; conditionMin?: string; conditionSender?: string; executionMode?: "EACH_INFLOW" | "MONTHLY_TARGET"; monthlyTarget?: string };
 
 export function RuleForm({ destinations, preset, existing, kycOk, onDone }: { destinations: Dest[]; preset?: { type?: string; dest?: string }; existing?: Existing; kycOk: boolean; onDone?: () => void }) {
   const router = useRouter();
@@ -19,74 +19,91 @@ export function RuleForm({ destinations, preset, existing, kycOk, onDone }: { de
     method: existing?.method ?? ("FIXED" as "FIXED" | "PERCENT"),
     value: existing?.value ?? "",
     priority: existing?.priority ?? 1,
+    conditionType: existing?.conditionType ?? ("ANY" as "ANY" | "MIN_AMOUNT" | "SENDER"),
+    conditionMin: existing?.conditionMin ?? "",
+    conditionSender: existing?.conditionSender ?? "",
+    executionMode: existing?.executionMode ?? ("EACH_INFLOW" as "EACH_INFLOW" | "MONTHLY_TARGET"),
+    monthlyTarget: existing?.monthlyTarget ?? "",
   });
-  const [review, setReview] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState<null | "draft" | "active">(null);
+  const [loading, setLoading] = useState(false);
   const options = destinations.filter((d) => d.type === v.destinationType);
   const chosen = destinations.find((d) => d.id === v.destinationId);
   const conflict = !existing && chosen?.hasRule;
+  const ready = !!v.name && !!chosen && !!v.value && !conflict && (v.conditionType !== "MIN_AMOUNT" || !!v.conditionMin) && (v.conditionType !== "SENDER" || !!v.conditionSender) && (v.executionMode !== "MONTHLY_TARGET" || !!v.monthlyTarget);
 
-  async function submit(activate: boolean) {
-    setLoading(activate ? "active" : "draft"); setErr(null);
+  async function submit() {
+    setLoading(true); setErr(null);
+    const extra = { conditionType: v.conditionType, conditionMin: v.conditionMin, conditionSender: v.conditionSender, executionMode: v.executionMode, monthlyTarget: v.monthlyTarget };
     try {
-      if (existing) await api(`/api/rules/${existing.id}`, { method: "PATCH", body: { name: v.name, method: v.method, value: v.value, priority: v.priority, status: activate ? "ACTIVE" : existing.status === "ACTIVE" ? "PAUSED" : existing.status } });
-      else await api("/api/rules", { body: { ...v, activate } });
+      if (existing) await api(`/api/rules/${existing.id}`, { method: "PATCH", body: { name: v.name, method: v.method, value: v.value, priority: v.priority, ...extra, ...(kycOk && existing.status === "DRAFT" ? { status: "ACTIVE" } : {}) } });
+      else await api("/api/rules", { body: { name: v.name, destinationType: v.destinationType, destinationId: v.destinationId, method: v.method, value: v.value, priority: v.priority, activate: kycOk, ...extra } });
       if (onDone) { onDone(); router.refresh(); } else { router.push("/rules"); router.refresh(); }
-    } catch (e) { setErr((e as ApiError).message); setReview(false); } finally { setLoading(null); }
+    } catch (e) { setErr((e as ApiError).message); } finally { setLoading(false); }
   }
 
-  if (review && chosen) {
-    return (
-      <div className="space-y-5">
-        <h2 className="text-lg font-medium">Review rule</h2>
-        <dl className="space-y-3 rounded-2xl bg-panel-2 p-5 text-sm">
-          {[["Rule name", v.name], ["Destination", `${chosen.name} (${v.destinationType === "WALLET" ? "Wallet" : "Beneficiary"})`], ["Category", chosen.category], ["Method", v.method === "FIXED" ? "Fixed amount" : "Percentage of salary"], ["Value", v.method === "FIXED" ? `₦${v.value}` : `${v.value}%`], ["Priority", `${v.priority} (1 runs first)`]].map(([k, x]) => <div key={k} className="flex justify-between gap-4"><dt className="text-muted">{k}</dt><dd className="text-right font-medium">{x}</dd></div>)}
-        </dl>
-        <p className="text-sm text-muted">{v.method === "PERCENT" ? "Percentages are calculated from your full confirmed salary, not what's left after earlier rules." : "Fixed amounts are only paid in full — if there isn't enough left when this rule's turn comes, it's skipped."}</p>
-        {!kycOk && <Alert tone="warn">You can save this as a draft. Activation unlocks after identity verification. <Link href="/onboarding" className="underline">Verify now</Link></Alert>}
-        <div className="flex flex-wrap gap-3">
-          <Button variant="secondary" onClick={() => setReview(false)}>Edit</Button>
-          <Button variant="secondary" loading={loading === "draft"} disabled={!!loading} onClick={() => submit(false)}>Save as draft</Button>
-          <Button loading={loading === "active"} disabled={!!loading || !kycOk} onClick={() => submit(true)}>Confirm & activate</Button>
-        </div>
-      </div>
-    );
-  }
-
+  const card = (on: boolean) => `flex cursor-pointer items-center gap-3 rounded-2xl border p-3.5 ${on ? "border-brand bg-brand-50" : "border-line"}`;
   return (
-    <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); setErr(null); if (!chosen) return setErr("Choose a destination"); setReview(true); }}>
+    <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); if (ready) submit(); }}>
       {err && <Alert tone="danger">{err}</Alert>}
-      <Field id="name" label="Rule name"><Input id="name" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} placeholder="e.g. Mother's monthly allowance" required maxLength={80} /></Field>
+      <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
+        <Field id="name" label="Rule Name"><Input id="name" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} placeholder="e.g. Mother's Monthly Allowance" required maxLength={80} /></Field>
+        <Field id="priority" label="Priority"><Select id="priority" value={v.priority} onChange={(e) => setV({ ...v, priority: Number(e.target.value) })}>{Array.from({ length: 10 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}{i === 0 ? " (first)" : ""}</option>)}</Select></Field>
+      </div>
       {!existing && (
-        <>
-          <fieldset className="grid grid-cols-2 gap-3"><legend className="mb-2 text-sm">Destination type</legend>
-            {(["WALLET", "BENEFICIARY"] as const).map((t) => <label key={t} className={`cursor-pointer rounded-xl border px-4 py-3.5 text-sm ${v.destinationType === t ? "border-brand bg-brand-50 text-ink" : "border-line text-muted"}`}><input type="radio" className="sr-only" checked={v.destinationType === t} onChange={() => setV({ ...v, destinationType: t, destinationId: "" })} />{t === "WALLET" ? "Wallet" : "Beneficiary"}</label>)}
-          </fieldset>
-          <Field id="dest" label="Destination" error={conflict ? "This destination already has a rule" : undefined}>
-            <Select id="dest" value={v.destinationId} onChange={(e) => setV({ ...v, destinationId: e.target.value })} required aria-invalid={conflict}>
-              <option value="">{options.length ? "Select destination" : `No ${v.destinationType === "WALLET" ? "wallets" : "beneficiaries"} yet`}</option>
-              {options.map((d) => <option key={d.id} value={d.id}>{d.name} · {d.category}{d.hasRule ? " (has a rule)" : ""}</option>)}
-            </Select>
-          </Field>
-          {conflict && chosen?.ruleId && <Alert tone="info">Each destination can have one rule. <Link className="underline" href={`/rules/${chosen.ruleId}/edit`}>Reconfigure the existing rule</Link></Alert>}
-          {!options.length && <Link href={v.destinationType === "WALLET" ? "/destinations/wallets/new" : "/destinations/beneficiaries/new"} className="text-sm text-brand hover:underline">+ Create a {v.destinationType === "WALLET" ? "wallet" : "beneficiary"} first</Link>}
-        </>
+        <fieldset>
+          <legend className="mb-2 text-sm">Destination Type</legend>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {([["WALLET", "Move to Wallet", "Save into one of your wallets", WalletIcon], ["BENEFICIARY", "Send to Beneficiary", "Transfer to a saved bank account", Landmark]] as const).map(([t, title, sub, Icon]) => (
+              <label key={t} className={card(v.destinationType === t)}>
+                <input type="radio" className="sr-only" checked={v.destinationType === t} onChange={() => setV({ ...v, destinationType: t, destinationId: "" })} />
+                <span className={`grid size-10 place-items-center rounded-full ${v.destinationType === t ? "bg-brand text-white" : "bg-panel text-muted"}`}><Icon size={18} /></span>
+                <span><span className="block text-[15px] font-medium">{title}</span><span className="text-xs text-muted">{sub}</span></span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
       )}
-      <fieldset className="grid grid-cols-2 gap-3"><legend className="mb-2 text-sm">Allocation method</legend>
-        {(["FIXED", "PERCENT"] as const).map((m) => <label key={m} className={`cursor-pointer rounded-xl border px-4 py-3.5 text-sm ${v.method === m ? "border-brand bg-brand-50 text-ink" : "border-line text-muted"}`}><input type="radio" className="sr-only" checked={v.method === m} onChange={() => setV({ ...v, method: m, value: "" })} />{m === "FIXED" ? "Fixed amount" : "Percentage"}</label>)}
-      </fieldset>
-      <Field id="value" label={v.method === "FIXED" ? "Amount" : "Percentage of salary"} hint={v.method === "FIXED" ? "e.g. 50,000" : "Up to 2 decimal places, e.g. 12.5"}>
+      {!existing && (
+        <Field id="dest" label={v.destinationType === "WALLET" ? "Select Wallet" : "Select Beneficiary"} error={conflict ? "This destination already has a rule" : undefined}>
+          <Select id="dest" value={v.destinationId} onChange={(e) => setV({ ...v, destinationId: e.target.value })} required aria-invalid={conflict}>
+            <option value="">{options.length ? "Choose destination" : `No ${v.destinationType === "WALLET" ? "wallets" : "beneficiaries"} yet`}</option>
+            {options.map((d) => <option key={d.id} value={d.id}>{d.name} · {d.category}{d.hasRule ? " (has a rule)" : ""}</option>)}
+          </Select>
+        </Field>
+      )}
+      {conflict && chosen?.ruleId && <Alert tone="info">Each destination can have one rule. <Link className="underline" href={`/rules/${chosen.ruleId}/edit`}>Edit the existing rule</Link></Alert>}
+      {!existing && !options.length && <Link href={v.destinationType === "WALLET" ? "/destinations/wallets/new" : "/destinations/beneficiaries/new"} className="text-sm text-brand hover:underline">+ Create a {v.destinationType === "WALLET" ? "wallet" : "beneficiary"} first</Link>}
+
+      <div>
+        <p className="mb-2 text-sm">Allocation Method</p>
+        <div role="tablist" className="mb-3 inline-flex gap-2">
+          {(["FIXED", "PERCENT"] as const).map((m) => <button key={m} type="button" role="tab" aria-selected={v.method === m} onClick={() => setV({ ...v, method: m, value: "" })} className={`rounded-lg border px-4 py-2 text-sm ${v.method === m ? "border-brand bg-brand-50 text-brand" : "border-line text-muted"}`}>{m === "FIXED" ? "Fixed Amount" : "Percentage"}</button>)}
+        </div>
         <div className="relative">
           {v.method === "FIXED" && <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted">₦</span>}
-          <Input id="value" inputMode="decimal" className={v.method === "FIXED" ? "pl-8" : "pr-8"} value={v.value} onChange={(e) => setV({ ...v, value: e.target.value })} required aria-describedby="value-hint" />
+          <Input id="value" aria-label={v.method === "FIXED" ? "Amount" : "Percentage of salary"} inputMode="decimal" className={v.method === "FIXED" ? "pl-8" : "pr-8"} value={v.value} onChange={(e) => setV({ ...v, value: e.target.value })} placeholder={v.method === "FIXED" ? "50,000" : "15"} required />
           {v.method === "PERCENT" && <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted">%</span>}
         </div>
-      </Field>
-      <Field id="priority" label="Priority" hint="1 runs first, 10 runs last. Rules with the same priority run oldest first.">
-        <Select id="priority" value={v.priority} onChange={(e) => setV({ ...v, priority: Number(e.target.value) })} aria-describedby="priority-hint">{Array.from({ length: 10 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}</Select>
-      </Field>
-      <Button type="submit" size="lg" disabled={!!conflict}>Review rule</Button>
+        <p className="mt-1.5 text-xs text-muted">{v.method === "PERCENT" ? "Percentages use the full salary, not what's left after earlier rules." : "Fixed amounts are paid in full or skipped, never partly paid."}</p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Field id="cond" label="Qualifying Inflow"><Select id="cond" value={v.conditionType} onChange={(e) => setV({ ...v, conditionType: e.target.value as typeof v.conditionType })}><option value="ANY">Every eligible inflow</option><option value="MIN_AMOUNT">Inflow above a minimum amount</option><option value="SENDER">Inflow from a specific sender</option></Select></Field>
+          {v.conditionType === "MIN_AMOUNT" && <Input aria-label="Minimum inflow amount" inputMode="decimal" className="h-[44px]" value={v.conditionMin} onChange={(e) => setV({ ...v, conditionMin: e.target.value })} placeholder="Minimum amount, e.g. ₦100,000" />}
+          {v.conditionType === "SENDER" && <Input aria-label="Sender account name" className="h-[44px]" value={v.conditionSender} onChange={(e) => setV({ ...v, conditionSender: e.target.value })} placeholder="Sender's account name, e.g. Talent Nation" />}
+        </div>
+        <div className="space-y-2">
+          <Field id="mode" label="Execution Mode"><Select id="mode" value={v.executionMode} onChange={(e) => setV({ ...v, executionMode: e.target.value as typeof v.executionMode })}><option value="EACH_INFLOW">As money comes in</option><option value="MONTHLY_TARGET">Monthly target</option></Select></Field>
+          {v.executionMode === "MONTHLY_TARGET" && <Input aria-label="Monthly allocation target" inputMode="decimal" className="h-[44px]" value={v.monthlyTarget} onChange={(e) => setV({ ...v, monthlyTarget: e.target.value })} placeholder="Monthly target, e.g. ₦200,000" />}
+        </div>
+      </div>
+
+      {!kycOk && <Alert tone="warn">This rule is saved as a draft. It activates after identity verification. <Link href="/onboarding" className="underline">Verify now</Link></Alert>}
+      <div className="-mx-6 border-t border-line px-6 pt-5">
+        <Button type="submit" size="lg" className="h-[60px]" loading={loading} disabled={!ready}><Plus size={16} /> {existing ? "Save Rule" : "Add Rule"}</Button>
+      </div>
     </form>
   );
 }

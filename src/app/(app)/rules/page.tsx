@@ -3,7 +3,7 @@ import clsx from "clsx";
 import { prisma } from "@/server/db";
 import { requireVerifiedUser } from "@/server/auth";
 import { salaryBalance } from "@/server/queries";
-import { destinationOptions } from "@/server/rule-page-data";
+import { destinationOptions, ruleForForm, ruleQualifiers } from "@/server/rule-page-data";
 import { formatBps, percentOf } from "@/core/money";
 import { naira, fmtDateTimeBar } from "@/lib/format";
 import { Alert, Badge, Checkbox, Empty, HeroCard, PageHeader, Panel, SearchBox, Segmented, Table, TablePanel, td, th } from "@/components/ui";
@@ -50,7 +50,6 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
   const kycOk = user.kycStatus === "APPROVED";
   const runDisabled = !kycOk ? "Verify your identity first" : !active.length ? "Activate a rule first" : salary <= 0n ? "No unallocated salary funds" : undefined;
   const fHref = (f: string) => `/rules?${new URLSearchParams({ ...(f !== "all" ? { filter: f } : {}), ...(sp.q ? { q: sp.q } : {}) })}`;
-  const editValue = (r: (typeof rules)[number]) => (r.method === "FIXED" ? (Number(r.amountMinor) / 100).toString() : (r.percentBps! / 100).toString());
 
   return (
     <>
@@ -97,10 +96,10 @@ export default async function RulesPage({ searchParams }: { searchParams: Promis
                   <td className={td}><Checkbox aria-label={`Select ${r.name}`} /></td>
                   <td className={td}><span className="flex items-center gap-2">{r.name}{r.status !== "ACTIVE" && <Badge status={r.status} />}</span></td>
                   <td className={td}>{r.wallet ? `${r.wallet.name} (wallet)` : `${r.beneficiary!.name} (${r.beneficiary!.bankName})`}</td>
-                  <td className={td + " tabular"}>{r.method === "FIXED" ? naira(r.amountMinor!) : formatBps(r.percentBps!)}</td>
+                  <td className={td + " tabular"}>{r.method === "FIXED" ? naira(r.amountMinor!) : formatBps(r.percentBps!)}{ruleQualifiers(r) && <span className="block text-xs text-muted">{ruleQualifiers(r)}</span>}</td>
                   <td className={td + " whitespace-nowrap"}>{fmtDateTimeBar(r.createdAt)}</td>
                   <td className={td + " tabular font-semibold"}>{naira(allocatedThisMonth.get(r.id) ?? 0n)}</td>
-                  <td className={td}><RuleActions id={r.id} status={r.status} kycOk={kycOk} edit={<RuleModalButton trigger="edit" destinations={dests} kycOk={kycOk} existing={{ id: r.id, name: r.name, destinationType: r.destinationType, destinationId: (r.walletId || r.beneficiaryId)!, method: r.method, value: editValue(r), priority: r.priority, status: r.status }} />} /></td>
+                  <td className={td}><RuleActions id={r.id} status={r.status} kycOk={kycOk} edit={<RuleModalButton trigger="edit" destinations={dests} kycOk={kycOk} existing={ruleForForm(r)} />} /></td>
                 </tr>
               ))}
             </Table>

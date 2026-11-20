@@ -112,7 +112,7 @@ export const flutterwave: PaymentProvider = {
   async verifyPayin(providerRef) {
     try {
       const d = await call(`/transactions/${encodeURIComponent(providerRef)}/verify`);
-      return { ok: d.status === "successful", amountMinor: toMinor(d.amount), currency: d.currency, txRef: d.tx_ref, email: d.customer?.email };
+      return { ok: d.status === "successful", amountMinor: toMinor(d.amount), currency: d.currency, txRef: d.tx_ref, email: d.customer?.email, senderName: d.meta?.originatorname || d.customer?.name || undefined };
     } catch {
       return null;
     }

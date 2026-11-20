@@ -96,3 +96,30 @@ describe("split engine", () => {
     expect(overAllocation([pct("a", 1, 4000), fixed("b", 2, 500)], N(1000)).over).toBe(false);
   });
 });
+
+describe("rule conditions and execution mode", () => {
+  const at = new Date("2026-01-01");
+  it("skips a rule whose inflow condition does not match, without using funds", () => {
+    const plan = planAllocations([
+      { id: "a", priority: 1, createdAt: at, method: "FIXED", amountMinor: 100_00n, skipReason: "Salary below ₦100,000 minimum" },
+      { id: "b", priority: 2, createdAt: at, method: "FIXED", amountMinor: 300_00n },
+    ], 500_00n, 500_00n);
+    expect(plan.allocations[0]).toMatchObject({ status: "SKIPPED", allocatedMinor: 0n, skipReason: "Salary below ₦100,000 minimum" });
+    expect(plan.allocations[1]).toMatchObject({ status: "ALLOCATE", allocatedMinor: 300_00n });
+    expect(plan.remaining).toBe(200_00n);
+  });
+  it("caps a monthly-target rule at what is left of the target", () => {
+    const plan = planAllocations([{ id: "a", priority: 1, createdAt: at, method: "PERCENT", percentBps: 5000, capMinor: 120_00n }], 1000_00n, 1000_00n);
+    expect(plan.allocations[0]).toMatchObject({ status: "ALLOCATE", requestedMinor: 120_00n, allocatedMinor: 120_00n });
+    expect(plan.remaining).toBe(880_00n);
+  });
+  it("skips a monthly-target rule once the target is reached", () => {
+    const plan = planAllocations([{ id: "a", priority: 1, createdAt: at, method: "FIXED", amountMinor: 50_00n, capMinor: 0n }], 100_00n, 100_00n);
+    expect(plan.allocations[0]).toMatchObject({ status: "SKIPPED", skipReason: "Monthly target reached" });
+    expect(plan.remaining).toBe(100_00n);
+  });
+  it("a capped rule that still cannot be funded is skipped, not partly paid", () => {
+    const plan = planAllocations([{ id: "a", priority: 1, createdAt: at, method: "FIXED", amountMinor: 500_00n, capMinor: 400_00n }], 300_00n, 300_00n);
+    expect(plan.allocations[0]).toMatchObject({ status: "SKIPPED", skipReason: "Insufficient funds", requestedMinor: 400_00n });
+  });
+});

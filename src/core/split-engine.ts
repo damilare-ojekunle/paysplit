@@ -7,6 +7,8 @@
 //  - A rule that cannot be fully funded is SKIPPED (never partially paid); evaluation continues.
 //  - Percentages round DOWN to the kobo, so the sum can never exceed the base.
 //  - Whatever is left stays in the salary account.
+//  - Rules whose inflow condition doesn't match are skipped with a reason (decided by the caller).
+//  - Monthly-target rules are capped at what's left of their target this month.
 
 import { Minor, percentOf } from "./money";
 
@@ -17,6 +19,10 @@ export interface EngineRule {
   method: "FIXED" | "PERCENT";
   amountMinor?: Minor | null;
   percentBps?: number | null;
+  /** Set when the rule's inflow condition doesn't match this run; the rule is skipped with this reason. */
+  skipReason?: string | null;
+  /** Monthly-target mode: the most this rule may still receive this month. 0 = target reached. */
+  capMinor?: Minor | null;
 }
 
 export interface Allocation {
@@ -63,7 +69,18 @@ export function planAllocations(rules: EngineRule[], base: Minor, available: Min
   const allocations: Allocation[] = [];
 
   for (const rule of orderRules(rules)) {
-    const requested = requestedAmount(rule, base);
+    if (rule.skipReason) {
+      allocations.push({ ruleId: rule.id, requestedMinor: 0n, allocatedMinor: 0n, status: "SKIPPED", skipReason: rule.skipReason, availableBefore: remaining });
+      continue;
+    }
+    let requested = requestedAmount(rule, base);
+    if (rule.capMinor != null) {
+      if (rule.capMinor <= 0n) {
+        allocations.push({ ruleId: rule.id, requestedMinor: 0n, allocatedMinor: 0n, status: "SKIPPED", skipReason: "Monthly target reached", availableBefore: remaining });
+        continue;
+      }
+      if (requested > rule.capMinor) requested = rule.capMinor; // only what's left of this month's target
+    }
     if (requested === 0n) {
       allocations.push({ ruleId: rule.id, requestedMinor: 0n, allocatedMinor: 0n, status: "SKIPPED", skipReason: "Amount rounds to zero", availableBefore: remaining });
       continue;

@@ -5,7 +5,7 @@ import { prisma } from "@/server/db";
 import { requireVerifiedUser } from "@/server/auth";
 import { balanceOf } from "@/server/ledger";
 import { listTransactions } from "@/server/queries";
-import { destinationOptions } from "@/server/rule-page-data";
+import { destinationOptions, ruleForForm, ruleQualifiers } from "@/server/rule-page-data";
 import { naira, fmtDate } from "@/lib/format";
 import { formatBps } from "@/core/money";
 import { Badge, Empty, PageHeader, Pagination, Panel, SearchBox, Segmented, TablePanel } from "@/components/ui";
@@ -65,8 +65,8 @@ export default async function WalletDetail({ params, searchParams }: { params: P
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-line bg-white p-5">
           {w.rule ? (
             <>
-              <div><p className="text-[13px] text-muted">Allocation Method/Value</p><p className="mt-1.5 text-lg font-medium">{ruleValue} <Badge status={w.rule.status} className="ml-1 align-middle" /></p><p className="mt-1 text-xs text-muted">{w.rule.name} · priority {w.rule.priority}</p></div>
-              <div className="flex items-center gap-4"><span className="text-[13px] text-muted">Last Modified: {fmtDate(w.rule.updatedAt)}</span><RuleModalButton trigger="reconfigure" destinations={dests} kycOk={kycOk} existing={{ id: w.rule.id, name: w.rule.name, destinationType: "WALLET", destinationId: w.id, method: w.rule.method, value: w.rule.method === "FIXED" ? String(Number(w.rule.amountMinor) / 100) : String(w.rule.percentBps! / 100), priority: w.rule.priority, status: w.rule.status }} /></div>
+              <div><p className="text-[13px] text-muted">Allocation Method/Value</p><p className="mt-1.5 text-lg font-medium">{ruleValue} <Badge status={w.rule.status} className="ml-1 align-middle" /></p><p className="mt-1 text-xs text-muted">{w.rule.name} · priority {w.rule.priority}{ruleQualifiers(w.rule) ? ` · ${ruleQualifiers(w.rule)}` : ""}</p></div>
+              <div className="flex items-center gap-4"><span className="text-[13px] text-muted">Last Modified: {fmtDate(w.rule.updatedAt)}</span><RuleModalButton trigger="reconfigure" destinations={dests} kycOk={kycOk} existing={ruleForForm(w.rule)} /></div>
             </>
           ) : (
             <>

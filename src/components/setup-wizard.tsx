@@ -145,7 +145,17 @@ export function SetupWizard({ steps, salaryDay }: { steps: Steps; salaryDay: num
                 <h3 className="text-[15px] font-medium">Create your first Split Rule</h3>
                 {dests.length ? (
                   <>
-                    <Field id="w-dest" label="Destination"><Select id="w-dest" value={rule.dest} onChange={(e) => setRule({ ...rule, dest: e.target.value })}>{dests.map((d) => <option key={d.id} value={`${d.type}:${d.id}`}>{d.name}</option>)}</Select></Field>
+                    <div className="grid grid-cols-2 gap-3">
+                      {([["WALLET", "Move to Wallet", Wallet], ["BENEFICIARY", "Send to Beneficiary", Landmark]] as const).map(([t, label, Icon]) => {
+                        const on = rule.dest.startsWith(t + ":"); const first = dests.find((d) => d.type === t);
+                        return (
+                          <button key={t} type="button" disabled={!first} onClick={() => first && setRule({ ...rule, dest: `${t}:${first.id}` })} className={clsx("flex items-center gap-3 rounded-2xl border p-3 text-left disabled:opacity-40", on ? "border-brand bg-brand-50" : "border-line")}>
+                            <span className={clsx("grid size-9 place-items-center rounded-full", on ? "bg-brand text-white" : "bg-panel text-muted")}><Icon size={16} /></span><span className="text-sm font-medium">{label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <Field id="w-dest" label="Destination"><Select id="w-dest" value={rule.dest} onChange={(e) => setRule({ ...rule, dest: e.target.value })}>{dests.filter((d) => rule.dest.startsWith(d.type + ":")).map((d) => <option key={d.id} value={`${d.type}:${d.id}`}>{d.name}</option>)}</Select></Field>
                     <div className="grid grid-cols-[1fr_1fr_90px] gap-3">
                       <Field id="w-method" label="Method"><Select id="w-method" value={rule.method} onChange={(e) => setRule({ ...rule, method: e.target.value })}><option value="PERCENT">Percentage</option><option value="FIXED">Fixed amount</option></Select></Field>
                       <Field id="w-val" label={rule.method === "PERCENT" ? "Percent" : "Amount (₦)"}><Input id="w-val" inputMode="decimal" value={rule.value} onChange={(e) => setRule({ ...rule, value: e.target.value })} placeholder={rule.method === "PERCENT" ? "10" : "50,000"} /></Field>

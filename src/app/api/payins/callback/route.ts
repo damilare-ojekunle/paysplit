@@ -21,7 +21,7 @@ export async function GET(req: Request) {
   const user = await resolvePayinUser({ txRef: verified.txRef });
   if (!user) return back("result=nouser");
   try {
-    const { payin } = await confirmPayin({ userId: user.id, providerRef: id, amountMinor: verified.amountMinor, currency: verified.currency, source: "ADMIN_TEST", initiatedBy: admin.id });
+    const { payin } = await confirmPayin({ userId: user.id, providerRef: id, amountMinor: verified.amountMinor, currency: verified.currency, source: "ADMIN_TEST", initiatedBy: admin.id, senderName: verified.senderName });
     return back(`result=ok&payin=${payin.id}`);
   } catch (e) {
     log.error("payin_callback_failed", { err: (e as Error).message });

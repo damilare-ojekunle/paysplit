@@ -32,14 +32,14 @@ export async function resolvePayinUser(hint: { txRef?: string; email?: string; a
  * Record a confirmed salary pay-in (idempotent on provider+providerRef), credit the user's salary
  * account in the ledger, then trigger the automatic split for that pay-in.
  */
-export async function confirmPayin(input: { userId: string; providerRef: string; amountMinor: bigint; currency: string; source: "WEBHOOK" | "ADMIN_TEST"; initiatedBy?: string }) {
+export async function confirmPayin(input: { userId: string; providerRef: string; amountMinor: bigint; currency: string; source: "WEBHOOK" | "ADMIN_TEST"; initiatedBy?: string; senderName?: string }) {
   const provider = paymentProvider().name;
   const payin = await prisma.$transaction(async (tx) => {
     await lockUser(tx, input.userId);
     let p = await tx.payin.findUnique({ where: { provider_providerRef: { provider, providerRef: input.providerRef } } });
     if (p) return { payin: p, isNew: false };
     p = await tx.payin.create({
-      data: { userId: input.userId, provider, providerRef: input.providerRef, amountMinor: input.amountMinor, currency: input.currency, status: "CONFIRMED", source: input.source, initiatedBy: input.initiatedBy },
+      data: { userId: input.userId, provider, providerRef: input.providerRef, amountMinor: input.amountMinor, currency: input.currency, status: "CONFIRMED", source: input.source, initiatedBy: input.initiatedBy, senderName: input.senderName?.slice(0, 120) },
     });
     const cash = await systemAccount(tx, "PROVIDER_CASH");
     const salary = await salaryAccount(tx, input.userId);
@@ -98,12 +98,48 @@ const toEngine = (r: RuleRow): EngineRule => ({ id: r.id, priority: r.priority, 
 const ruleValue = (r: RuleRow) => (r.method === "FIXED" ? formatMinor(r.amountMinor!) : formatBps(r.percentBps!));
 const destName = (r: RuleRow) => (r.wallet ? r.wallet.name : r.beneficiary!.name);
 
+const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/**
+ * Turn stored rules into engine rules for one run: inflow conditions are checked against the pay-in
+ * that triggered the run (manual runs have no inflow, so conditional rules are skipped), and
+ * monthly-target rules are capped at what is left of this month's target.
+ */
+async function engineRulesFor(tx: Tx, rules: RuleRow[], payin: { amountMinor: bigint; senderName: string | null } | null): Promise<EngineRule[]> {
+  const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Africa/Lagos" }));
+  const monthStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1) - 3600_000);
+  const targetIds = rules.filter((r) => r.executionMode === "MONTHLY_TARGET").map((r) => r.id);
+  const used = targetIds.length
+    ? await tx.splitExecutionItem.groupBy({ by: ["ruleId"], where: { ruleId: { in: targetIds }, status: { in: ["SUCCESS", "PENDING"] }, execution: { createdAt: { gte: monthStart } } }, _sum: { allocatedMinor: true } })
+    : [];
+  const usedBy = new Map(used.map((u) => [u.ruleId, u._sum.allocatedMinor ?? 0n]));
+  return rules.map((r) => {
+    let skipReason: string | undefined;
+    if (r.conditionType === "MIN_AMOUNT") {
+      const min = r.conditionMinMinor!;
+      if (!payin) skipReason = `Runs only on a salary of at least ${formatMinor(min)}`;
+      else if (payin.amountMinor < min) skipReason = `Salary below the ${formatMinor(min)} minimum`;
+    } else if (r.conditionType === "SENDER") {
+      const want = norm(r.conditionSender!);
+      const got = payin?.senderName ? norm(payin.senderName) : "";
+      if (!payin) skipReason = `Runs only on salary from ${r.conditionSender}`;
+      else if (!got || !(got.includes(want) || want.includes(got))) skipReason = `Salary not from ${r.conditionSender}`;
+    }
+    let capMinor: bigint | null = null;
+    if (r.executionMode === "MONTHLY_TARGET") {
+      const left = r.monthlyTargetMinor! - (usedBy.get(r.id) ?? 0n);
+      capMinor = left > 0n ? left : 0n;
+    }
+    return { ...toEngine(r), skipReason, capMinor };
+  });
+}
+
 /** Read-only preview for Run Now. */
 export async function previewManualSplit(userId: string) {
   const salary = await salaryAccount(prisma, userId);
   const available = await balanceOf(prisma, salary.id);
   const rules = await activeRules(prisma, userId);
-  const plan = planAllocations(rules.map(toEngine), available, available);
+  const plan = planAllocations(await engineRulesFor(prisma, rules, null), available, available);
   const byId = new Map(rules.map((r) => [r.id, r]));
   return {
     available,
@@ -137,8 +173,10 @@ export async function executeSplit(userId: string, opts: { trigger: "AUTO" | "MA
 
     let base: bigint;
     let available: bigint;
+    let inflow: { amountMinor: bigint; senderName: string | null } | null = null;
     if (opts.trigger === "AUTO") {
       const payin = await tx.payin.findUniqueOrThrow({ where: { id: opts.payinId! } });
+      inflow = payin;
       base = payin.amountMinor; // percentages use the original confirmed salary
       available = balance < payin.amountMinor ? balance : payin.amountMinor; // only this salary's funds
     } else {
@@ -150,7 +188,7 @@ export async function executeSplit(userId: string, opts: { trigger: "AUTO" | "MA
     if (!rules.length) throw new HttpError(409, "You have no active split rules");
     if (available <= 0n) throw new HttpError(409, "There are no unallocated salary funds to split");
 
-    const plan = planAllocations(rules.map(toEngine), base, available);
+    const plan = planAllocations(await engineRulesFor(tx, rules, inflow), base, available);
     const byId = new Map(rules.map((r) => [r.id, r]));
 
     const exec = await tx.splitExecution.create({
@@ -165,7 +203,7 @@ export async function executeSplit(userId: string, opts: { trigger: "AUTO" | "MA
         ruleValue: ruleValue(r), priority: r.priority, requestedMinor: a.requestedMinor,
       };
       if (a.status === "SKIPPED") {
-        await tx.splitExecutionItem.create({ data: { ...snapshot, status: "SKIPPED", skipReason: `${a.skipReason}: requested ${formatMinor(a.requestedMinor)}, available ${formatMinor(a.availableBefore)}` } });
+        await tx.splitExecutionItem.create({ data: { ...snapshot, status: "SKIPPED", skipReason: a.skipReason === "Insufficient funds" ? `${a.skipReason}: requested ${formatMinor(a.requestedMinor)}, available ${formatMinor(a.availableBefore)}` : a.skipReason } });
         continue;
       }
       if (r.wallet) {

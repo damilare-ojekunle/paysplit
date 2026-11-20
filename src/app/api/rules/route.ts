@@ -2,7 +2,7 @@ import { prisma, isUniqueViolation } from "@/server/db";
 import { requireVerifiedUser } from "@/server/auth";
 import { route, body, json, HttpError } from "@/server/http";
 import { audit } from "@/server/notify";
-import { RuleSchema, parseValue, assertPercentBudget } from "@/server/destinations";
+import { RuleSchema, parseConditions, parseValue, assertPercentBudget } from "@/server/destinations";
 
 export const GET = route(async () => {
   const user = await requireVerifiedUser();
@@ -23,7 +23,7 @@ export const POST = route(async (req) => {
   if (b.activate && v.percentBps) await assertPercentBudget(user.id, v.percentBps);
   try {
     const rule = await prisma.splitRule.create({
-      data: { userId: user.id, name: b.name, destinationType: b.destinationType, walletId: b.destinationType === "WALLET" ? dest.id : null, beneficiaryId: b.destinationType === "BENEFICIARY" ? dest.id : null, method: b.method, ...v, priority: b.priority, status: b.activate ? "ACTIVE" : "DRAFT" },
+      data: { userId: user.id, name: b.name, destinationType: b.destinationType, walletId: b.destinationType === "WALLET" ? dest.id : null, beneficiaryId: b.destinationType === "BENEFICIARY" ? dest.id : null, method: b.method, ...v, ...parseConditions(b), priority: b.priority, status: b.activate ? "ACTIVE" : "DRAFT" },
     });
     await audit(user.id, "rule.create", { type: "SplitRule", id: rule.id }, { method: b.method, status: rule.status });
     return json(rule, { status: 201 });

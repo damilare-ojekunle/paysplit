@@ -255,6 +255,17 @@ enum AllocationMethod {
   PERCENT
 }
 
+enum RuleCondition {
+  ANY // every eligible inflow
+  MIN_AMOUNT // only inflows at or above conditionMinMinor
+  SENDER // only inflows whose sender name matches conditionSender
+}
+
+enum RuleMode {
+  EACH_INFLOW // run on every qualifying inflow
+  MONTHLY_TARGET // run until monthlyTargetMinor has been allocated this month
+}
+
 enum RuleStatus {
   DRAFT
   ACTIVE
@@ -276,6 +287,11 @@ model SplitRule {
   percentBps      Int? // PERCENT, basis points (1500 = 15.00%)
   priority        Int // 1 = highest
   status          RuleStatus       @default(DRAFT)
+  conditionType   RuleCondition    @default(ANY)
+  conditionMinMinor BigInt?
+  conditionSender String?
+  executionMode   RuleMode         @default(EACH_INFLOW)
+  monthlyTargetMinor BigInt?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
@@ -299,6 +315,7 @@ model Payin {
   currency    String      @default("NGN")
   status      PayinStatus @default(PENDING)
   source      String // WEBHOOK | ADMIN_TEST
+  senderName  String? // payer name reported by the provider (used by sender-conditioned rules)
   initiatedBy String? // admin user id for test pay-ins
   receivedAt  DateTime    @default(now())
   createdAt   DateTime    @default(now())

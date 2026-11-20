@@ -3,7 +3,7 @@ import { prisma } from "@/server/db";
 import { requireVerifiedUser } from "@/server/auth";
 import { route, body, json, HttpError } from "@/server/http";
 import { audit } from "@/server/notify";
-import { parseValue, assertPercentBudget } from "@/server/destinations";
+import { parseConditions, parseValue, assertPercentBudget } from "@/server/destinations";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -13,6 +13,11 @@ const Patch = z.object({
   value: z.string().trim().optional(),
   priority: z.number().int().min(1).max(10).optional(),
   status: z.enum(["DRAFT", "ACTIVE", "PAUSED"]).optional(),
+  conditionType: z.enum(["ANY", "MIN_AMOUNT", "SENDER"]).optional(),
+  conditionMin: z.string().trim().optional(),
+  conditionSender: z.string().trim().max(120).optional(),
+  executionMode: z.enum(["EACH_INFLOW", "MONTHLY_TARGET"]).optional(),
+  monthlyTarget: z.string().trim().optional(),
 });
 
 export const PATCH = route<Ctx>(async (req, { params }) => {
@@ -27,7 +32,7 @@ export const PATCH = route<Ctx>(async (req, { params }) => {
   const finalStatus = b.status ?? rule.status;
   const finalBps = v ? v.percentBps : rule.percentBps;
   if (finalStatus === "ACTIVE" && method === "PERCENT" && finalBps) await assertPercentBudget(user.id, finalBps, rule.id);
-  const updated = await prisma.splitRule.update({ where: { id: rule.id }, data: { name: b.name, priority: b.priority, status: b.status, method: b.method, ...(v ?? {}) } });
+  const updated = await prisma.splitRule.update({ where: { id: rule.id }, data: { name: b.name, priority: b.priority, status: b.status, method: b.method, ...(v ?? {}), ...parseConditions(b) } });
   await audit(user.id, "rule.update", { type: "SplitRule", id: rule.id }, { changes: Object.keys(b), from: { status: rule.status, priority: rule.priority } });
   return json(updated);
 });

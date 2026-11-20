@@ -38,7 +38,7 @@ export async function POST(req: Request) {
       const user = await resolvePayinUser({ ...event.userHint, txRef: verified.txRef ?? event.userHint.txRef, email: verified.email ?? event.userHint.email });
       if (!user) throw new Error("No user matches this pay-in");
       const isTest = (verified.txRef ?? "").startsWith("salary-");
-      await confirmPayin({ userId: user.id, providerRef: event.providerRef, amountMinor: verified.amountMinor, currency: verified.currency, source: isTest ? "ADMIN_TEST" : "WEBHOOK" });
+      await confirmPayin({ userId: user.id, providerRef: event.providerRef, amountMinor: verified.amountMinor, currency: verified.currency, source: isTest ? "ADMIN_TEST" : "WEBHOOK", senderName: verified.senderName });
     } else {
       const known = await provider.getTransfer(event.reference);
       const t = await prisma.transfer.findUnique({ where: { reference: event.reference } });

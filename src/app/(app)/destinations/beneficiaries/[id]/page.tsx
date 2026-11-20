@@ -4,7 +4,7 @@ import { ArrowLeft, ChevronRight, Download } from "lucide-react";
 import { prisma } from "@/server/db";
 import { requireVerifiedUser } from "@/server/auth";
 import { listTransactions } from "@/server/queries";
-import { destinationOptions } from "@/server/rule-page-data";
+import { destinationOptions, ruleForForm } from "@/server/rule-page-data";
 import { naira, fmtDate, fmtDateTimeBar, flowKind } from "@/lib/format";
 import { formatBps } from "@/core/money";
 import { amountClass, Badge, CategoryPill, Checkbox, Empty, FlowIcon, PageHeader, Pagination, Panel, Table, TablePanel, td, th } from "@/components/ui";
@@ -51,7 +51,7 @@ export default async function BeneficiaryDetail({ params, searchParams }: { para
               {b.rule ? (
                 <>
                   <p className="mt-1.5 text-lg font-medium">{ruleValue} <Badge status={b.rule.status} className="ml-1 align-middle" /></p>
-                  <div className="mt-3 [&_button]:w-full"><RuleModalButton trigger="reconfigure" destinations={dests} kycOk={kycOk} existing={{ id: b.rule.id, name: b.rule.name, destinationType: "BENEFICIARY", destinationId: b.id, method: b.rule.method, value: b.rule.method === "FIXED" ? String(Number(b.rule.amountMinor) / 100) : String(b.rule.percentBps! / 100), priority: b.rule.priority, status: b.rule.status }} /></div>
+                  <div className="mt-3 [&_button]:w-full"><RuleModalButton trigger="reconfigure" destinations={dests} kycOk={kycOk} existing={ruleForForm(b.rule)} /></div>
                   <p className="mt-3 text-[13px] text-muted">Last Modified: {fmtDate(b.rule.updatedAt)}</p>
                 </>
               ) : (

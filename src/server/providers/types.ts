@@ -27,7 +27,7 @@ export interface PaymentProvider {
   /** Authoritative status for reconciliation. Returns null if the provider has no record of the reference. */
   getTransfer(reference: string): Promise<{ state: TransferState; providerCode?: string; message?: string } | null>;
   /** Verify a pay-in directly with the provider (never trust webhook payloads alone). */
-  verifyPayin(providerRef: string): Promise<{ ok: boolean; amountMinor: bigint; currency: string; txRef?: string; email?: string } | null>;
+  verifyPayin(providerRef: string): Promise<{ ok: boolean; amountMinor: bigint; currency: string; txRef?: string; email?: string; senderName?: string } | null>;
   /** Create a sandbox checkout used by admins to push a test salary pay-in through the real event flow. */
   createTestPayinLink(input: { txRef: string; amountMinor: bigint; email: string; name: string; redirectUrl: string }): Promise<{ url: string }>;
   parseWebhook(rawBody: string, headers: Headers): PaymentEvent | null;
