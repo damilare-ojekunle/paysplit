@@ -2,13 +2,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Columns2, Play, Plus, Split, SquarePen, Trash2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
+import { Modal } from "./client-bits";
 import { Alert, Button, Field, Input, Select } from "./ui";
 
 type Dest = { id: string; name: string; category: string; type: "WALLET" | "BENEFICIARY"; hasRule: boolean; ruleId?: string };
 type Existing = { id: string; name: string; destinationType: "WALLET" | "BENEFICIARY"; destinationId: string; method: "FIXED" | "PERCENT"; value: string; priority: number; status: string };
 
-export function RuleForm({ destinations, preset, existing, kycOk }: { destinations: Dest[]; preset?: { type?: string; dest?: string }; existing?: Existing; kycOk: boolean }) {
+export function RuleForm({ destinations, preset, existing, kycOk, onDone }: { destinations: Dest[]; preset?: { type?: string; dest?: string }; existing?: Existing; kycOk: boolean; onDone?: () => void }) {
   const router = useRouter();
   const [v, setV] = useState({
     name: existing?.name ?? "",
@@ -30,15 +32,15 @@ export function RuleForm({ destinations, preset, existing, kycOk }: { destinatio
     try {
       if (existing) await api(`/api/rules/${existing.id}`, { method: "PATCH", body: { name: v.name, method: v.method, value: v.value, priority: v.priority, status: activate ? "ACTIVE" : existing.status === "ACTIVE" ? "PAUSED" : existing.status } });
       else await api("/api/rules", { body: { ...v, activate } });
-      router.push("/rules"); router.refresh();
+      if (onDone) { onDone(); router.refresh(); } else { router.push("/rules"); router.refresh(); }
     } catch (e) { setErr((e as ApiError).message); setReview(false); } finally { setLoading(null); }
   }
 
   if (review && chosen) {
     return (
-      <div className="max-w-xl space-y-5">
-        <h2 className="text-xl font-medium">Review rule</h2>
-        <dl className="space-y-3 rounded-2xl bg-canvas p-5 text-sm">
+      <div className="space-y-5">
+        <h2 className="text-lg font-medium">Review rule</h2>
+        <dl className="space-y-3 rounded-2xl bg-panel-2 p-5 text-sm">
           {[["Rule name", v.name], ["Destination", `${chosen.name} (${v.destinationType === "WALLET" ? "Wallet" : "Beneficiary"})`], ["Category", chosen.category], ["Method", v.method === "FIXED" ? "Fixed amount" : "Percentage of salary"], ["Value", v.method === "FIXED" ? `₦${v.value}` : `${v.value}%`], ["Priority", `${v.priority} (1 runs first)`]].map(([k, x]) => <div key={k} className="flex justify-between gap-4"><dt className="text-muted">{k}</dt><dd className="text-right font-medium">{x}</dd></div>)}
         </dl>
         <p className="text-sm text-muted">{v.method === "PERCENT" ? "Percentages are calculated from your full confirmed salary, not what's left after earlier rules." : "Fixed amounts are only paid in full — if there isn't enough left when this rule's turn comes, it's skipped."}</p>
@@ -53,13 +55,13 @@ export function RuleForm({ destinations, preset, existing, kycOk }: { destinatio
   }
 
   return (
-    <form className="max-w-xl space-y-5" onSubmit={(e) => { e.preventDefault(); setErr(null); if (!chosen) return setErr("Choose a destination"); setReview(true); }}>
+    <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); setErr(null); if (!chosen) return setErr("Choose a destination"); setReview(true); }}>
       {err && <Alert tone="danger">{err}</Alert>}
       <Field id="name" label="Rule name"><Input id="name" value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} placeholder="e.g. Mother's monthly allowance" required maxLength={80} /></Field>
       {!existing && (
         <>
-          <fieldset className="grid grid-cols-2 gap-3"><legend className="mb-1.5 text-sm font-medium">Destination type</legend>
-            {(["WALLET", "BENEFICIARY"] as const).map((t) => <label key={t} className={`cursor-pointer rounded-xl border px-4 py-3 text-sm ${v.destinationType === t ? "border-brand bg-brand-50" : "border-line"}`}><input type="radio" className="sr-only" checked={v.destinationType === t} onChange={() => setV({ ...v, destinationType: t, destinationId: "" })} />{t === "WALLET" ? "Wallet" : "Beneficiary"}</label>)}
+          <fieldset className="grid grid-cols-2 gap-3"><legend className="mb-2 text-sm">Destination type</legend>
+            {(["WALLET", "BENEFICIARY"] as const).map((t) => <label key={t} className={`cursor-pointer rounded-xl border px-4 py-3.5 text-sm ${v.destinationType === t ? "border-brand bg-brand-50 text-ink" : "border-line text-muted"}`}><input type="radio" className="sr-only" checked={v.destinationType === t} onChange={() => setV({ ...v, destinationType: t, destinationId: "" })} />{t === "WALLET" ? "Wallet" : "Beneficiary"}</label>)}
           </fieldset>
           <Field id="dest" label="Destination" error={conflict ? "This destination already has a rule" : undefined}>
             <Select id="dest" value={v.destinationId} onChange={(e) => setV({ ...v, destinationId: e.target.value })} required aria-invalid={conflict}>
@@ -71,8 +73,8 @@ export function RuleForm({ destinations, preset, existing, kycOk }: { destinatio
           {!options.length && <Link href={v.destinationType === "WALLET" ? "/destinations/wallets/new" : "/destinations/beneficiaries/new"} className="text-sm text-brand hover:underline">+ Create a {v.destinationType === "WALLET" ? "wallet" : "beneficiary"} first</Link>}
         </>
       )}
-      <fieldset className="grid grid-cols-2 gap-3"><legend className="mb-1.5 text-sm font-medium">Allocation method</legend>
-        {(["FIXED", "PERCENT"] as const).map((m) => <label key={m} className={`cursor-pointer rounded-xl border px-4 py-3 text-sm ${v.method === m ? "border-brand bg-brand-50" : "border-line"}`}><input type="radio" className="sr-only" checked={v.method === m} onChange={() => setV({ ...v, method: m, value: "" })} />{m === "FIXED" ? "Fixed amount" : "Percentage"}</label>)}
+      <fieldset className="grid grid-cols-2 gap-3"><legend className="mb-2 text-sm">Allocation method</legend>
+        {(["FIXED", "PERCENT"] as const).map((m) => <label key={m} className={`cursor-pointer rounded-xl border px-4 py-3.5 text-sm ${v.method === m ? "border-brand bg-brand-50 text-ink" : "border-line text-muted"}`}><input type="radio" className="sr-only" checked={v.method === m} onChange={() => setV({ ...v, method: m, value: "" })} />{m === "FIXED" ? "Fixed amount" : "Percentage"}</label>)}
       </fieldset>
       <Field id="value" label={v.method === "FIXED" ? "Amount" : "Percentage of salary"} hint={v.method === "FIXED" ? "e.g. 50,000" : "Up to 2 decimal places, e.g. 12.5"}>
         <div className="relative">
@@ -89,18 +91,39 @@ export function RuleForm({ destinations, preset, existing, kycOk }: { destinatio
   );
 }
 
-export function RuleActions({ id, status, kycOk }: { id: string; status: string; kycOk: boolean }) {
+export function RuleActions({ id, status, kycOk, edit }: { id: string; status: string; kycOk: boolean; edit: React.ReactNode }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  async function act(fn: () => Promise<unknown>) { setBusy(true); setErr(null); try { await fn(); router.refresh(); } catch (e) { setErr((e as ApiError).message); } finally { setBusy(false); } }
+  const [confirmDel, setConfirmDel] = useState(false);
+  async function act(fn: () => Promise<unknown>) { setBusy(true); setErr(null); try { await fn(); router.refresh(); setConfirmDel(false); } catch (e) { setErr((e as ApiError).message); } finally { setBusy(false); } }
+  const icon = "grid size-8 place-items-center rounded-lg hover:bg-panel disabled:opacity-40";
   return (
     <div className="flex items-center justify-end gap-1">
-      {status === "ACTIVE" && <Button size="sm" variant="ghost" disabled={busy} onClick={() => act(() => api(`/api/rules/${id}`, { method: "PATCH", body: { status: "PAUSED" } }))}>Pause</Button>}
-      {status !== "ACTIVE" && <Button size="sm" variant="ghost" disabled={busy || !kycOk} title={!kycOk ? "Verify your identity first" : undefined} onClick={() => act(() => api(`/api/rules/${id}`, { method: "PATCH", body: { status: "ACTIVE" } }))}>{status === "DRAFT" ? "Activate" : "Resume"}</Button>}
-      <Link href={`/rules/${id}/edit`} className="rounded-lg px-3 py-2 text-sm text-brand hover:bg-brand-50">Edit</Link>
-      <Button size="sm" variant="ghost" className="!text-danger" disabled={busy} onClick={() => confirm("Delete this rule? Past split records are kept.") && act(() => api(`/api/rules/${id}`, { method: "DELETE" }))}>Delete</Button>
-      {err && <span role="alert" className="text-xs text-danger">{err}</span>}
+      {status === "ACTIVE"
+        ? <button className={icon} disabled={busy} aria-label="Pause rule" title="Pause rule" onClick={() => act(() => api(`/api/rules/${id}`, { method: "PATCH", body: { status: "PAUSED" } }))}><Columns2 size={18} strokeWidth={1.7} /></button>
+        : <button className={icon} disabled={busy || !kycOk} aria-label={status === "DRAFT" ? "Activate rule" : "Resume rule"} title={!kycOk ? "Verify your identity first" : status === "DRAFT" ? "Activate rule" : "Resume rule"} onClick={() => act(() => api(`/api/rules/${id}`, { method: "PATCH", body: { status: "ACTIVE" } }))}><Play size={17} strokeWidth={1.7} /></button>}
+      {edit}
+      <button className={icon + " text-[#e5484d]"} disabled={busy} aria-label="Delete rule" title="Delete rule" onClick={() => setConfirmDel(true)}><Trash2 size={18} strokeWidth={1.7} /></button>
+      {err && !confirmDel && <span role="alert" className="text-xs text-danger">{err}</span>}
+      <Modal open={confirmDel} onClose={() => setConfirmDel(false)} size="sm" icon={<Trash2 size={18} className="text-[#e5484d]" />} title="Delete this rule?" description="It will stop running from the next split. Past split records are kept."
+        footer={<><Button variant="secondary" onClick={() => setConfirmDel(false)}>Cancel</Button><Button className="!bg-[#e5484d] hover:!bg-[#cf3a3f]" loading={busy} onClick={() => act(() => api(`/api/rules/${id}`, { method: "DELETE" }))}>Delete rule</Button></>}>
+        {err ? <Alert tone="danger">{err}</Alert> : <span className="sr-only">Confirm deletion</span>}
+      </Modal>
     </div>
+  );
+}
+
+export function RuleModalButton({ destinations, existing, kycOk, trigger }: { destinations: Dest[]; existing?: Existing; kycOk: boolean; trigger: "add" | "edit" | "add-empty" }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      {trigger === "edit"
+        ? <button className="grid size-8 place-items-center rounded-lg hover:bg-panel" aria-label="Edit rule" title="Edit rule" onClick={() => setOpen(true)}><SquarePen size={18} strokeWidth={1.7} /></button>
+        : <Button size={trigger === "add" ? "xl" : "md"} className={trigger === "add" ? "px-6" : ""} onClick={() => setOpen(true)}><Plus size={18} /> {trigger === "add" ? "Add New Rule" : "Create your first rule"}</Button>}
+      <Modal open={open} onClose={() => setOpen(false)} size="lg" icon={<Split size={20} />} title={existing ? "Edit split rule" : "Add new split rule"} description={existing ? "Changes apply from the next split. Past splits keep the values they ran with." : "Send a fixed amount or a percentage of each salary to a wallet or beneficiary."}>
+        <RuleForm destinations={destinations} existing={existing} kycOk={kycOk} onDone={() => setOpen(false)} />
+      </Modal>
+    </>
   );
 }

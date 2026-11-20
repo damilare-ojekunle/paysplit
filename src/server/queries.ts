@@ -101,6 +101,13 @@ export async function listTransactions(userId: string, f: TxFilter = {}) {
   return { rows, total, page, pageSize };
 }
 
+const REF_PREFIX: Record<LedgerTxnType, string> = { SALARY_IN: "PAY", WALLET_ALLOCATION: "ALC", TRANSFER_OUT: "TRF", TRANSFER_SETTLED: "STL", TRANSFER_REVERSAL: "RFD", WALLET_TO_SALARY: "WTS" };
+/** Short human reference, e.g. PAY-20261120-4K7Q (date in Lagos time + id suffix). */
+export function displayRef(type: LedgerTxnType, at: Date, id: string) {
+  const d = at.toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" }).replace(/-/g, "");
+  return `${REF_PREFIX[type]}-${d}-${id.slice(-4).toUpperCase()}`;
+}
+
 type TxnWithEntries = Prisma.LedgerTransactionGetPayload<{ include: { entries: { include: { account: true } } } }>;
 
 async function toRows(userId: string, txns: TxnWithEntries[]): Promise<TxRow[]> {
@@ -122,7 +129,7 @@ async function toRows(userId: string, txns: TxnWithEntries[]): Promise<TxRow[]> 
     const amount = userEntry.amountMinor < 0n ? -userEntry.amountMinor : userEntry.amountMinor;
     const transfer = m.transferId ? tMap.get(m.transferId) : undefined;
     const wallet = m.walletId ? wMap.get(m.walletId) : undefined;
-    const base = { id: t.id, reference: t.reference.toUpperCase().replace(/[^A-Z0-9]+/g, "-").slice(0, 32), type: t.type, label: LABEL[t.type], description: t.description, amountMinor: amount, createdAt: t.createdAt, executionId: m.executionId, transferId: m.transferId, walletId: m.walletId, beneficiaryId: m.beneficiaryId };
+    const base = { id: t.id, reference: displayRef(t.type, t.createdAt, t.id), type: t.type, label: LABEL[t.type], description: t.description, amountMinor: amount, createdAt: t.createdAt, executionId: m.executionId, transferId: m.transferId, walletId: m.walletId, beneficiaryId: m.beneficiaryId };
     switch (t.type) {
       case "SALARY_IN": {
         const p = pMap.get(m.payinId);

@@ -43,7 +43,7 @@ export function Modal({ open, onClose, title, description, icon, children, foote
 
 type Preview = { available: string; totalAllocated: string; remaining: string; items: { ruleId: string; ruleName: string; destination: string; destinationType: string; priority: number; value: string; requestedMinor: string; allocatedMinor: string; status: string; skipReason?: string }[] };
 
-export function RunNowButton({ disabledReason }: { disabledReason?: string }) {
+export function RunNowButton({ disabledReason, size = "md", variant = "primary" }: { disabledReason?: string; size?: "md" | "xl"; variant?: "primary" | "outline" }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -62,8 +62,8 @@ export function RunNowButton({ disabledReason }: { disabledReason?: string }) {
   }
   return (
     <>
-      <Button onClick={start} disabled={!!disabledReason} title={disabledReason}>Run split now</Button>
-      <Modal open={open} onClose={() => setOpen(false)} title="Run split now" wide>
+      <Button onClick={start} size={size} variant={variant} className={size === "xl" ? "px-6" : ""} disabled={!!disabledReason} title={disabledReason}>Run split now</Button>
+      <Modal open={open} onClose={() => setOpen(false)} title="Run split now" description="Preview how your active rules will split the money in your salary account." wide>
         {error && <Alert tone="danger" className="mb-4">{error}</Alert>}
         {!preview && !error && <p className="text-sm text-muted">Calculating…</p>}
         {preview && (
@@ -71,7 +71,7 @@ export function RunNowButton({ disabledReason }: { disabledReason?: string }) {
             <p className="text-sm text-muted">Your active rules will run against <b className="text-ink">{naira(preview.available)}</b> of unallocated salary. Rules that can't be fully funded are skipped — nothing is partially paid.</p>
             <div className="overflow-x-auto rounded-2xl border border-line">
               <table className="w-full text-sm">
-                <thead className="bg-canvas text-left text-xs text-muted"><tr><th className="px-3 py-2">#</th><th className="px-3 py-2">Rule</th><th className="px-3 py-2">Destination</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2">Outcome</th></tr></thead>
+                <thead className="bg-panel-2 text-left text-xs text-muted"><tr><th className="px-3 py-2">#</th><th className="px-3 py-2">Rule</th><th className="px-3 py-2">Destination</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2">Outcome</th></tr></thead>
                 <tbody>
                   {preview.items.map((i) => (
                     <tr key={i.ruleId} className="border-t border-line">
@@ -83,7 +83,7 @@ export function RunNowButton({ disabledReason }: { disabledReason?: string }) {
                 </tbody>
               </table>
             </div>
-            <div className="flex flex-wrap justify-between gap-2 rounded-2xl bg-canvas p-4 text-sm"><span>Will allocate <b>{naira(preview.totalAllocated)}</b></span><span>Stays in salary account <b>{naira(preview.remaining)}</b></span></div>
+            <div className="flex flex-wrap justify-between gap-2 rounded-2xl bg-panel-2 p-4 text-sm"><span>Will allocate <b>{naira(preview.totalAllocated)}</b></span><span>Stays in salary account <b>{naira(preview.remaining)}</b></span></div>
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
               <Button onClick={confirm} loading={loading} disabled={preview.totalAllocated === "0"}>Confirm and run</Button>
@@ -105,4 +105,10 @@ export function RetryProvision() {
       {err && <p className="text-xs text-danger">{err}</p>}
     </div>
   );
+}
+
+/** A modal whose open state lives in the URL (e.g. ?tx=id); closing navigates to `closeHref`. */
+export function RouteModal({ closeHref, title, description, icon, footer, children, size = "md" }: { closeHref: string; title: string; description?: ReactNode; icon?: ReactNode; footer?: ReactNode; children: ReactNode; size?: "sm" | "md" | "lg" }) {
+  const router = useRouter();
+  return <Modal open onClose={() => router.push(closeHref, { scroll: false })} title={title} description={description} icon={icon} footer={footer} size={size}>{children}</Modal>;
 }

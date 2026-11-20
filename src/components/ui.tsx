@@ -37,7 +37,7 @@ export function TablePanel({ title, tools, footer, children, className }: { titl
 /* ---------------------------------------------------------------- tables */
 
 export const th = "h-12 px-3 text-left text-[13px] font-normal text-muted first:pl-5 last:pr-5";
-export const td = "h-[50px] px-3 text-sm text-ink first:pl-5 last:pr-5";
+export const td = "h-[50px] px-3 text-sm first:pl-5 last:pr-5";
 
 export function Table({ head, children, className }: { head: ReactNode; children: ReactNode; className?: string }) {
   return (

@@ -74,21 +74,21 @@ export function AccountDetails({ account }: { account: { accountNumber: string; 
 
 /* ---------------------------------------------------------------- export statement modal */
 
-export function ExportButton({ dark = true, label = "Export" }: { dark?: boolean; label?: string }) {
+export function ExportButton({ dark = true, primary = false, label = "Export" }: { dark?: boolean; primary?: boolean; label?: string }) {
   const [open, setOpen] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
   return (
     <>
-      <button onClick={() => setOpen(true)} className={clsx("inline-flex h-[60px] items-center gap-2 rounded-[14px] border px-5 text-[15px]", dark ? "border-white/40 bg-black/30 text-white backdrop-blur hover:bg-white/10" : "border-line bg-white text-ink hover:bg-panel-2")}>
-        {label} <Share size={17} />
-      </button>
+      {primary
+        ? <button onClick={() => setOpen(true)} className="inline-flex h-[60px] items-center gap-2 rounded-[14px] bg-brand px-5 text-[15px] text-white hover:bg-brand-600"><Share size={17} /> {label}</button>
+        : <button onClick={() => setOpen(true)} className={clsx("inline-flex h-[60px] items-center gap-2 rounded-[14px] border px-5 text-[15px]", dark ? "border-white/40 bg-black/30 text-white backdrop-blur hover:bg-white/10" : "border-line bg-white text-ink hover:bg-panel-2")}>{label} <Share size={17} /></button>}
       <Modal open={open} onClose={() => setOpen(false)} size="sm" icon={<Share size={18} />} title="Export statement" description="Download every salary, split and transfer in a date range."
         footer={<><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button form="export-form" type="submit" onClick={() => setTimeout(() => setOpen(false), 300)}>Download</Button></>}>
         <form id="export-form" action="/api/statements" className="grid grid-cols-2 gap-3">
           <label className="space-y-2 text-sm">From<Input type="date" name="from" defaultValue={monthAgo} max={today} /></label>
           <label className="space-y-2 text-sm">To<Input type="date" name="to" defaultValue={today} max={today} /></label>
-          <label className="col-span-2 space-y-2 text-sm">Format<Select name="format" defaultValue="pdf"><option value="pdf">PDF statement</option><option value="csv">CSV (spreadsheet)</option></Select></label>
+          <label className="col-span-2 space-y-2 text-sm">Format<Select name="format" defaultValue={primary ? "csv" : "pdf"}><option value="pdf">PDF statement</option><option value="csv">CSV (spreadsheet)</option></Select></label>
         </form>
       </Modal>
     </>
