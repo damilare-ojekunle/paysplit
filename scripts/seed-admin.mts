@@ -10,7 +10,7 @@ const passwordHash = await bcrypt.hash(password, 12);
 await prisma.user.upsert({
   where: { email },
   update: { role: "ADMIN", passwordHash },
-  create: { email, passwordHash, firstName: "PaySplit", lastName: "Admin", role: "ADMIN", emailVerifiedAt: new Date() },
+  create: { email, passwordHash, firstName: "Admin", lastName: "Team", role: "ADMIN", emailVerifiedAt: new Date() },
 });
 console.log(`Admin ready: ${email}`);
 await prisma.$disconnect();

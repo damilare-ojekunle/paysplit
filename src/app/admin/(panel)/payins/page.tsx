@@ -20,7 +20,7 @@ export default async function AdminPayins({ searchParams }: { searchParams: Prom
   const justRun = sp.payin ? runs.find((r) => r.id === sp.payin) : null;
   return (
     <>
-      <PageHeader title="Salary pay-ins (test)" crumbs={[{ href: "/admin", label: "Overview" }, { label: "Pay-ins" }]} />
+      <PageHeader title="Salary payments" crumbs={[{ href: "/admin", label: "Dashboard" }, { label: "Salary payments" }]} />
       {res && <Alert tone={res[1]} className="mb-6">{res[0]} {justRun?.executions[0] && <Link className="underline" href={`/admin/payins/${justRun.executions[0].id}`}>View split result</Link>}</Alert>}
       <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
         <Card className="p-6 sm:p-8">

@@ -18,7 +18,7 @@ export default async function AdminRun({ params }: { params: Promise<{ id: strin
       </div>
       <Card className="mt-6 overflow-x-auto">
         <table className="w-full min-w-[700px] text-sm">
-          <thead className="border-b border-line bg-canvas text-left text-xs text-muted"><tr><th className="px-6 py-3">#</th><th className="px-3 py-3">Destination</th><th className="px-3 py-3 text-right">Requested</th><th className="px-3 py-3 text-right">Allocated</th><th className="px-3 py-3">Status</th><th className="px-6 py-3">Reason / reference</th></tr></thead>
+          <thead className="border-b border-line bg-panel-2 text-left text-xs text-muted"><tr><th className="px-6 py-3">#</th><th className="px-3 py-3">Destination</th><th className="px-3 py-3 text-right">Requested</th><th className="px-3 py-3 text-right">Allocated</th><th className="px-3 py-3">Status</th><th className="px-6 py-3">Reason / reference</th></tr></thead>
           <tbody>{e.items.map((i) => <tr key={i.id} className="border-b border-line"><td className="px-6 py-3">{i.priority}</td><td className="px-3 py-3">{i.destinationName} <span className="text-xs text-muted">({i.ruleValue})</span></td><td className="tabular px-3 py-3 text-right">{naira(i.requestedMinor)}</td><td className="tabular px-3 py-3 text-right">{naira(["SKIPPED", "FAILED"].includes(i.status) ? 0n : i.allocatedMinor)}</td><td className="px-3 py-3"><Badge status={i.status} /></td><td className="px-6 py-3 text-xs text-muted">{i.skipReason ?? i.transfer?.reference ?? ""}</td></tr>)}</tbody>
         </table>
       </Card>

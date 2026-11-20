@@ -53,7 +53,7 @@ export function TopNav({ name, links, searchHref = "/transactions", avatar }: { 
         <Link href={links[0].href} aria-label="Paysplit home" className="w-[216px] shrink-0"><Logo /></Link>
         <nav aria-label="Main" className="mx-auto hidden h-full md:flex">
           {links.map((l) => {
-            const active = path === l.href || path.startsWith(l.href + "/");
+            const active = path === l.href || (l.href !== "/admin" && path.startsWith(l.href + "/"));
             return (
               <Link key={l.href} href={l.href} aria-current={active ? "page" : undefined} className={clsx("relative flex h-full items-center px-3 text-sm", active ? "font-semibold text-ink" : "text-ink hover:text-brand")}>
                 {l.label}
