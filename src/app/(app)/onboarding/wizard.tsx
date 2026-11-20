@@ -2,10 +2,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Camera, CheckCircle2, ChevronLeft, IdCard, RefreshCw, ShieldCheck } from "lucide-react";
+import { Camera, CheckCircle2, ChevronLeft, ChevronRight, IdCard, Landmark, RefreshCw, ShieldCheck } from "lucide-react";
 import clsx from "clsx";
 import { api, ApiError } from "@/lib/api";
-import { Alert, Button, Card, Field, Input, LinkButton, Select } from "@/components/ui";
+import { Alert, Button, Field, Input, LinkButton, Panel, Select } from "@/components/ui";
 import { CopyButton } from "@/components/client-bits";
 
 type Init = {
@@ -14,7 +14,7 @@ type Init = {
   account: null | { status: string; accountNumber: string | null; bankName: string | null; accountName: string | null };
 };
 
-const STEPS = ["Profile basics", "Identity verification", "Biometrics liveness"];
+const STEPS = ["Profile Basics", "Identity Verification", "Biometrics Liveness"];
 
 export function KycWizard({ initial }: { initial: Init }) {
   const router = useRouter();
@@ -36,55 +36,61 @@ export function KycWizard({ initial }: { initial: Init }) {
   }
 
   return (
-    <Card className="grid gap-0 overflow-hidden p-2 lg:grid-cols-[minmax(0,420px)_1fr]">
-      <aside className="flex flex-col items-center gap-6 rounded-[16px] bg-gradient-to-b from-brand-50 to-white px-6 py-10 text-center">
-        <IdCard size={64} className="text-brand" aria-hidden />
-        <ol className="space-y-5" aria-label="Verification steps">
+    <Panel className="grid gap-4 sm:-mx-4 lg:min-h-[752px] lg:grid-cols-[490px_1fr]">
+      <aside className="kpi-card flex flex-col items-center gap-8 rounded-[20px] px-6 py-8 text-center">
+        <KycArt />
+        <ol className="space-y-6" aria-label="Verification steps">
           {STEPS.map((s, i) => (
-            <li key={s} className="flex flex-col items-center gap-1" aria-current={i === step ? "step" : undefined}>
-              {i < step ? <CheckCircle2 className="text-brand" /> : <span className={clsx("grid size-6 place-items-center rounded-full border-2 text-xs", i === step ? "border-brand text-brand" : "border-muted/50 text-muted")}>{i + 1}</span>}
-              <span className={clsx("text-lg", i <= step ? "text-brand" : "text-muted")}>{s}</span>
+            <li key={s} className="flex flex-col items-center gap-1.5" aria-current={i === step ? "step" : undefined}>
+              {i <= step ? <CheckCircle2 size={22} className={i === step ? "fill-brand text-white" : "text-brand"} aria-hidden /> : <CheckCircle2 size={22} className="text-subtle" aria-hidden />}
+              <span className={clsx("text-lg", i === step ? "text-brand" : i < step ? "text-ink" : "text-subtle")}>{s}</span>
             </li>
           ))}
         </ol>
-        <p className="max-w-xs text-sm text-muted">{["We'll use this number for verification and messages about your account.", "We check your BVN or NIN with Dojah. We never store the full number.", "A quick selfie confirms it's really you, matched against your identity record."][Math.min(step, 2)]}</p>
+        <p className="max-w-[260px] text-sm text-ink">{["We'll use this number for verification and messages about your account.", "We check your BVN or NIN with Dojah. We never store the full number.", "A quick selfie confirms it's really you, matched against your identity record.", "You're verified. Your salary account is ready."][Math.min(step, 3)]}</p>
       </aside>
 
-      <section className="p-6 sm:p-10">
-        {step > 0 && step < 3 && <button onClick={() => setStep(step - 1)} className="mb-6 inline-flex items-center gap-1 text-sm text-muted hover:text-ink"><ChevronLeft size={16} /> Previous</button>}
+      <section className="flex flex-col rounded-[20px] border border-line-2 bg-panel-2 p-2">
+        <div className="flex h-11 items-center justify-between px-3 text-sm">
+          {step > 0 && step < 3 ? <button onClick={() => { setError(null); setStep(step - 1); }} className="inline-flex items-center gap-1 text-muted hover:text-ink"><ChevronLeft size={16} /> Previous</button> : <span />}
+          {step < 3 && <Link href="/dashboard" className="inline-flex items-center gap-1 text-brand hover:underline">Skip step <ChevronRight size={16} /></Link>}
+        </div>
+        <div className="flex flex-1 justify-center rounded-2xl border border-line bg-white px-5 py-10 sm:px-12">
+        <div className="flex w-full max-w-[704px] flex-col">
         {error && <Alert tone="danger" className="mb-5">{error}</Alert>}
 
         {step === 0 && (
-          <form className="max-w-xl space-y-5" onSubmit={(e) => { e.preventDefault(); run(async () => { await api("/api/profile", { method: "PATCH", body: { country, phone } }); setStep(1); router.refresh(); }); }}>
-            <div><h2 className="text-2xl font-medium">Profile basics</h2><p className="mt-1 text-muted">Select your operating region for salary processing.</p></div>
+          <form className="flex flex-1 flex-col gap-5" onSubmit={(e) => { e.preventDefault(); run(async () => { await api("/api/profile", { method: "PATCH", body: { country, phone } }); setStep(1); router.refresh(); }); }}>
+            <div><h2 className="text-2xl">Profile Basics</h2><p className="mt-1 text-[15px] text-muted">Select your operating region and default currency for salary processing.</p></div>
             <Field id="country" label="Country"><Select id="country" value={country} onChange={(e) => setCountry(e.target.value)}><option value="NG">Nigeria</option></Select></Field>
-            <Field id="phone" label="Mobile phone number" hint="e.g. 803 456 7890">
-              <div className="flex"><span className="grid h-12 place-items-center rounded-l-xl border border-r-0 border-line bg-canvas px-3 text-sm">+234</span><Input id="phone" inputMode="tel" autoComplete="tel-national" className="rounded-l-none" value={phone} onChange={(e) => setPhone(e.target.value)} required aria-describedby="phone-hint" /></div>
+            <Field id="phone" label="Mobile Phone Number" hint="e.g. 803 456 7890">
+              <div className="flex"><span className="grid h-[52px] place-items-center rounded-l-[10px] border border-r-0 border-line bg-panel-2 px-3.5 text-[15px]">+234</span><Input id="phone" inputMode="tel" autoComplete="tel-national" className="rounded-l-none" value={phone} onChange={(e) => setPhone(e.target.value)} required aria-describedby="phone-hint" /></div>
             </Field>
-            <Button type="submit" size="lg" loading={loading}>Continue</Button>
+            <Button type="submit" size="lg" className="mt-auto h-[60px]" loading={loading}>Continue</Button>
           </form>
         )}
 
         {step === 1 && (
-          <form className="max-w-xl space-y-5" onSubmit={(e) => { e.preventDefault(); run(async () => {
+          <form className="flex flex-1 flex-col gap-5" onSubmit={(e) => { e.preventDefault(); run(async () => {
             const r = await api<{ ok: boolean; reason?: string; verificationId: string }>("/api/kyc/identity", { body: { idType, idNumber } });
             if (!r.ok) throw new ApiError(422, r.reason || "We couldn't verify that number");
             setVerificationId(r.verificationId); setStep(2);
           }); }}>
-            <div><h2 className="text-2xl font-medium">Identity verification</h2><p className="mt-1 text-muted">Choose one. You don't need to provide both.</p></div>
+            <div><h2 className="text-2xl">Identity Verification</h2><p className="mt-1 text-[15px] text-muted">Choose one. You don't need to provide both.</p></div>
             <fieldset className="grid grid-cols-2 gap-3">
               <legend className="sr-only">Identity type</legend>
               {(["BVN", "NIN"] as const).map((t) => (
-                <label key={t} className={clsx("cursor-pointer rounded-2xl border p-4", idType === t ? "border-brand bg-brand-50" : "border-line")}>
+                <label key={t} className={clsx("flex cursor-pointer items-center gap-3 rounded-2xl border p-3.5", idType === t ? "border-brand bg-brand-50" : "border-line")}>
+                  <span className={clsx("grid size-10 place-items-center rounded-full", idType === t ? "bg-brand text-white" : "bg-panel text-muted")}>{t === "BVN" ? <Landmark size={18} /> : <IdCard size={18} />}</span>
                   <input type="radio" name="idType" value={t} checked={idType === t} onChange={() => setIdType(t)} className="sr-only" />
-                  <span className="block font-medium">{t}</span><span className="text-xs text-muted">{t === "BVN" ? "Bank Verification Number" : "National Identification Number"}</span>
+                  <span><span className="block font-medium">{t}</span><span className="text-xs text-muted">{t === "BVN" ? "Bank Verification Number" : "National Identification Number"}</span></span>
                 </label>
               ))}
             </fieldset>
             <Field id="idNumber" label={idType} hint="11 digits. Sandbox test values: BVN 22222222222 · NIN 70123456789">
               <Input id="idNumber" inputMode="numeric" autoComplete="off" maxLength={11} value={idNumber} onChange={(e) => setIdNumber(e.target.value.replace(/\D/g, ""))} required aria-describedby="idNumber-hint" />
             </Field>
-            <Button type="submit" size="lg" loading={loading} disabled={idNumber.length !== 11}>Verify {idType}</Button>
+            <Button type="submit" size="lg" className="mt-auto h-[60px]" loading={loading} disabled={idNumber.length !== 11}>Continue</Button>
           </form>
         )}
 
@@ -101,23 +107,38 @@ export function KycWizard({ initial }: { initial: Init }) {
         )}
 
         {step === 3 && (
-          <div className="max-w-xl space-y-5">
+          <div className="space-y-5">
             <ShieldCheck size={48} className="text-success" />
             <h2 className="text-2xl font-medium">You're verified</h2>
             <p className="text-muted">Transfers and automatic splits are unlocked.</p>
             {account?.status === "ACTIVE" ? (
-              <div className="space-y-2 rounded-2xl border border-line p-5">
+              <div className="space-y-2 rounded-2xl border border-line bg-panel-2 p-5">
                 <p className="text-sm text-muted">Your dedicated salary account</p>
                 <p className="tabular text-2xl font-semibold">{account.accountNumber}</p>
                 <p className="text-sm">{account.bankName} · {account.accountName}</p>
                 <CopyButton text={`${account.accountNumber} — ${account.bankName} — ${account.accountName}`} label="Copy details for your employer" />
               </div>
             ) : <Alert tone="warn">Your salary account is still being set up. You can retry from the dashboard.</Alert>}
-            <div className="flex gap-3"><LinkButton href="/destinations/wallets/new">Create a wallet</LinkButton><LinkButton href="/dashboard" variant="secondary">Go to dashboard</LinkButton></div>
+            <div className="flex gap-3"><LinkButton href="/dashboard" variant="secondary" size="lg" className="h-[60px] flex-1">Go to dashboard</LinkButton><LinkButton href="/destinations/wallets/new" size="lg" className="h-[60px] flex-1">Create a wallet</LinkButton></div>
           </div>
         )}
+        </div>
+        </div>
       </section>
-    </Card>
+    </Panel>
+  );
+}
+
+function KycArt() {
+  return (
+    <div className="relative h-[110px] w-[96px]" aria-hidden>
+      <div className="absolute left-3 top-0 h-[100px] w-[78px] rotate-[-6deg] rounded-xl bg-white/70 shadow-sm" />
+      <div className="absolute left-1.5 top-1 flex h-[104px] w-[82px] flex-col items-center rounded-xl bg-gradient-to-b from-white to-[#eef1f4] pt-4 shadow-[0_10px_24px_rgba(23,25,24,0.15)]">
+        <span className="size-7 rounded-full bg-gradient-to-b from-[#6a6b69] to-[#343635]" />
+        <span className="mt-1 h-4 w-12 rounded-t-full bg-gradient-to-b from-[#6a6b69] to-[#343635]" />
+        <span className="mt-2 h-1.5 w-12 rounded bg-[#343635]" /><span className="mt-1 h-1.5 w-10 rounded bg-[#939493]" />
+      </div>
+    </div>
   );
 }
 
@@ -148,14 +169,14 @@ function Liveness({ idType, needsId, masked, loading, onSubmit }: { idType: stri
   }
 
   return (
-    <div className="max-w-xl space-y-5">
-      <div><h2 className="text-2xl font-medium">Biometrics liveness</h2><p className="mt-1 text-muted">Face the camera in good light, remove glasses or hats, and keep your face inside the frame.</p></div>
+    <div className="space-y-5">
+      <div><h2 className="text-2xl">Biometrics Liveness</h2><p className="mt-1 text-muted">Face the camera in good light, remove glasses or hats, and keep your face inside the frame.</p></div>
       {needsId && (
         <Field id="confirmId" label={`Re-enter your ${idType} to continue`} hint={masked ? `Ends in ${masked.slice(-4)}` : undefined}>
           <Input id="confirmId" inputMode="numeric" maxLength={11} value={id} onChange={(e) => setId(e.target.value.replace(/\D/g, ""))} aria-describedby="confirmId-hint" />
         </Field>
       )}
-      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl bg-navy">
+      <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl bg-ink">
         {shot ? <img src={shot} alt="Your captured selfie" className="size-full object-cover" /> : <video ref={video} playsInline muted className="size-full -scale-x-100 object-cover" aria-label="Camera preview" />}
         {!stream && !shot && <div className="absolute inset-0 grid place-items-center"><Button onClick={startCam} variant="secondary"><Camera size={16} /> Start camera</Button></div>}
         {stream && <div className="pointer-events-none absolute inset-[15%_25%] rounded-[50%] border-4 border-white/70" aria-hidden />}

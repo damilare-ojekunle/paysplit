@@ -83,13 +83,13 @@ export function SetupWizard({ steps, salaryDay }: { steps: Steps; salaryDay: num
   const canSave = k === "income" ? !!income.salaryDay : k === "wallets" ? !!wallet.name : k === "recipients" ? !!resolved && !!ben.name : !!rule.dest && !!rule.value;
 
   return (
-    <dialog ref={ref} onClose={close} aria-labelledby="setup-title" className="m-auto w-[calc(100%-2rem)] max-w-[467px] overflow-hidden rounded-[20px] bg-white p-0 text-ink shadow-2xl backdrop:bg-black/30 backdrop:backdrop-blur-md">
+    <dialog ref={ref} onClose={close} aria-labelledby="setup-title" className="m-auto w-[calc(100%-2rem)] max-w-[678px] overflow-hidden rounded-[20px] bg-white p-0 text-ink shadow-2xl backdrop:bg-black/30 backdrop:backdrop-blur-md">
       {open && (
         <div>
           <div className="bg-gradient-to-b from-[#ececec] via-white to-white px-4 pb-1 pt-9 text-center">
             <h2 id="setup-title" className="text-[19px] font-semibold">Configure your Salary Partitions</h2>
             <p className="mt-1.5 text-[13px] text-muted">Complete {ORDER.length} steps to activate automated payroll distribution.</p>
-            <ol className="mx-auto mt-5 flex max-w-[400px] items-start justify-between">
+            <ol className="mx-auto mt-6 flex max-w-[420px] items-start justify-between">
               {ORDER.map((key, i) => {
                 const M = META[key]; const Icon = M.icon; const active = i === step; const ok = done[key];
                 return (
@@ -107,7 +107,7 @@ export function SetupWizard({ steps, salaryDay }: { steps: Steps; salaryDay: num
             </ol>
           </div>
 
-          <form className="px-4 pb-4 pt-5" onSubmit={(e) => { e.preventDefault(); if (canSave) save(); }}>
+          <form className="px-6 pb-6 pt-5" onSubmit={(e) => { e.preventDefault(); if (canSave) save(); }}>
             {err && <Alert tone="danger" className="mb-4">{err}</Alert>}
             {k === "income" && (
               <div className="space-y-4">
