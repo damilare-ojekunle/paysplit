@@ -21,3 +21,8 @@ next-env.d.ts
 *.pem
 npm-debug.log*
 pnpm-debug.log*
+
+# reference materials kept local only (assessment brief, Figma exports)
+docs/spec/
+design/
+docs/design-map.md
