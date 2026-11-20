@@ -5,7 +5,7 @@ const PUBLIC = ["/login", "/register", "/verify-email", "/forgot-password", "/re
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  if (pathname.startsWith("/api") || PUBLIC.some((p) => pathname.startsWith(p))) return NextResponse.next();
+  if (pathname === "/" || pathname.startsWith("/landing") || pathname.startsWith("/api") || PUBLIC.some((p) => pathname.startsWith(p))) return NextResponse.next();
   if (!req.cookies.get("ps_session")) {
     const url = req.nextUrl.clone();
     url.pathname = pathname.startsWith("/admin") ? "/admin/login" : "/login";

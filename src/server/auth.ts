@@ -19,12 +19,13 @@ export async function clientMeta() {
   return { ip: (h.get("x-forwarded-for") || "").split(",")[0].trim() || "local", userAgent: h.get("user-agent") || "" };
 }
 
-export async function createSession(userId: string) {
+/** `remember` = 7-day persistent cookie; otherwise a browser-session cookie backed by a 12-hour server session. */
+export async function createSession(userId: string, remember = true) {
   const token = randomToken();
   const { ip, userAgent } = await clientMeta();
-  const expiresAt = new Date(Date.now() + SESSION_DAYS * 864e5);
+  const expiresAt = new Date(Date.now() + (remember ? SESSION_DAYS * 864e5 : 12 * 3600e3));
   await prisma.session.create({ data: { userId, tokenHash: sha256(token), expiresAt, ip, userAgent } });
-  (await cookies()).set(COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", expires: expiresAt });
+  (await cookies()).set(COOKIE, token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", ...(remember ? { expires: expiresAt } : {}) });
 }
 
 export async function destroySession() {

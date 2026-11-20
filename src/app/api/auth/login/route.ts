@@ -6,7 +6,7 @@ import { route, body, json, HttpError } from "@/server/http";
 import { rateLimit } from "@/server/ratelimit";
 import { audit, notify } from "@/server/notify";
 
-const Schema = z.object({ email: z.string().trim().toLowerCase().email(), password: z.string().min(1), admin: z.boolean().optional() });
+const Schema = z.object({ email: z.string().trim().toLowerCase().email(), password: z.string().min(1), admin: z.boolean().optional(), remember: z.boolean().optional() });
 const DUMMY = bcrypt.hashSync("timing-equaliser", 12);
 
 export const POST = route(async (req) => {
@@ -21,7 +21,7 @@ export const POST = route(async (req) => {
     throw new HttpError(401, "Incorrect email or password");
   }
   if (b.admin && user.role !== "ADMIN") throw new HttpError(403, "This account does not have admin access");
-  await createSession(user.id);
+  await createSession(user.id, b.remember ?? true);
   await audit(user.id, "auth.login", { type: "User", id: user.id }, { userAgent }, ip);
   await notify(user.id, {
     type: "security",

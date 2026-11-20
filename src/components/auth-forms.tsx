@@ -5,7 +5,7 @@ import { useState, type FormEvent } from "react";
 import { Eye, EyeOff, MailCheck } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
 import { Alert, Button, Field, Input } from "./ui";
-import { Logo } from "./logo";
+import { LogoMark } from "./logo";
 
 function useForm() {
   const [loading, setLoading] = useState(false);
@@ -35,32 +35,38 @@ function Password({ id, label, value, onChange, autoComplete, hint }: { id: stri
 }
 
 const Head = ({ title, sub }: { title: string; sub: string }) => (
-  <div className="mb-8 space-y-2">
-    <Logo className="mb-6 lg:hidden" />
-    <h1 className="text-2xl font-semibold">{title}</h1>
-    <p className="text-sm text-muted">{sub}</p>
+  <div className="mb-6 flex flex-col items-center text-center">
+    <LogoMark size={48} />
+    <h1 id="auth-title" className="mt-4 text-[19px] font-semibold">{title}</h1>
+    <p className="mt-1 text-sm text-muted">{sub}</p>
   </div>
 );
+const Divider = () => <div className="-mx-6 my-6 border-t border-line" aria-hidden />;
 
 export function LoginForm({ admin = false }: { admin?: boolean }) {
   const router = useRouter();
   const f = useForm();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
   const submit = (e: FormEvent) => { e.preventDefault(); f.run(async () => {
-    const r = await api<{ role: string; emailVerified: boolean }>("/api/auth/login", { body: { email, password, admin } });
+    const r = await api<{ role: string; emailVerified: boolean }>("/api/auth/login", { body: { email, password, admin, remember } });
     router.push(r.role === "ADMIN" ? "/admin" : r.emailVerified ? "/dashboard" : "/verify-email");
     router.refresh();
   }); };
   return (
     <form onSubmit={submit} className="space-y-5" noValidate>
-      <Head title={admin ? "Admin sign in" : "Welcome back"} sub={admin ? "Restricted to authorised PaySplit administrators." : "Sign in to manage your salary splits."} />
+      <Head title={admin ? "Admin sign in" : "Log in to your account"} sub={admin ? "Restricted to authorised PaySplit administrators." : "Welcome back! Please enter your details."} />
       {f.error && <Alert tone="danger">{f.error}</Alert>}
       <Field id="email" label="Email address"><Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required /></Field>
       <Password id="password" label="Password" value={password} onChange={setPassword} autoComplete="current-password" />
-      <div className="flex justify-end"><Link href="/forgot-password" className="text-sm text-brand hover:underline">Forgot password?</Link></div>
-      <Button type="submit" size="lg" loading={f.loading}>Sign in</Button>
-      {!admin && <p className="text-center text-sm text-muted">New to PaySplit? <Link href="/register" className="text-brand hover:underline">Create an account</Link></p>}
+      <div className="flex items-center justify-between text-sm">
+        <label className="flex items-center gap-2"><input type="checkbox" className="size-4 accent-brand" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Remember me for 7 days</label>
+        {!admin && <Link href="/forgot-password" className="font-medium text-brand hover:underline">Forgot password</Link>}
+      </div>
+      <Divider />
+      <Button type="submit" size="lg" className="h-[60px]" loading={f.loading}>Sign in</Button>
+      {!admin && <p className="text-center text-[15px] text-muted">Don&apos;t have an account? <Link href="/register" className="font-medium text-brand hover:underline">Create One</Link></p>}
     </form>
   );
 }
@@ -80,7 +86,7 @@ export function RegisterForm() {
   const submit = (e: FormEvent) => { e.preventDefault(); if (mismatch) return f.setError("Passwords do not match"); f.run(async () => { await api("/api/auth/register", { body: v }); router.push("/verify-email"); router.refresh(); }); };
   return (
     <form onSubmit={submit} className="space-y-4" noValidate>
-      <Head title="Create your account" sub="It takes a minute. You'll verify your email next." />
+      <Head title="Create an account" sub="Start splitting your salary automatically. You'll verify your email next." />
       {f.error && <Alert tone="danger">{f.error}</Alert>}
       <div className="grid grid-cols-2 gap-3">
         <Field id="firstName" label="First name" error={f.fieldErrors.firstName}><Input id="firstName" value={v.firstName} onChange={set("firstName")} autoComplete="given-name" required /></Field>
@@ -89,13 +95,14 @@ export function RegisterForm() {
       <Field id="email" label="Email address" error={f.fieldErrors.email}><Input id="email" type="email" value={v.email} onChange={set("email")} autoComplete="email" required /></Field>
       <Password id="password" label="Password" value={v.password} onChange={(x) => setV({ ...v, password: x })} autoComplete="new-password" />
       <ul className="flex flex-wrap gap-2 text-xs" aria-label="Password requirements">
-        {rules.map((r) => <li key={r.label} className={r.ok ? "rounded-full bg-success-50 px-2 py-0.5 text-success" : "rounded-full bg-canvas px-2 py-0.5 text-muted"}>{r.ok ? "✓ " : ""}{r.label}</li>)}
+        {rules.map((r) => <li key={r.label} className={r.ok ? "rounded-full bg-success-50 px-2 py-0.5 text-success-ink" : "rounded-full bg-panel px-2 py-0.5 text-muted"}>{r.ok ? "✓ " : ""}{r.label}</li>)}
       </ul>
       <Field id="confirmPassword" label="Confirm password" error={mismatch ? "Passwords do not match" : undefined}>
         <Input id="confirmPassword" type="password" value={v.confirmPassword} onChange={set("confirmPassword")} autoComplete="new-password" required aria-invalid={mismatch} />
       </Field>
-      <Button type="submit" size="lg" loading={f.loading} disabled={!rules.every((r) => r.ok)}>Create account</Button>
-      <p className="text-center text-sm text-muted">Already have an account? <Link href="/login" className="text-brand hover:underline">Sign in</Link></p>
+      <Divider />
+      <Button type="submit" size="lg" className="h-[60px]" loading={f.loading} disabled={!rules.every((r) => r.ok)}>Create account</Button>
+      <p className="text-center text-[15px] text-muted">Already have an account? <Link href="/login" className="font-medium text-brand hover:underline">Sign in</Link></p>
     </form>
   );
 }
