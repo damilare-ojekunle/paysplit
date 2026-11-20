@@ -1,0 +1,449 @@
+// PaySplit data model.
+// Money is always BigInt minor units (kobo). Balances are never stored —
+// they are derived from immutable LedgerEntry rows (double-entry, sum = 0).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum KycStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  PENDING_REVIEW
+  ACTION_REQUIRED
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String
+  firstName       String
+  lastName        String
+  role            Role      @default(USER)
+  emailVerifiedAt DateTime?
+  country         String?
+  phone           String?
+  kycStatus       KycStatus @default(NOT_STARTED)
+  salaryDay       Int? // 1..31, expected day of month (estimate only)
+  timezone        String    @default("Africa/Lagos")
+  notifyEmail     Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  sessions          Session[]
+  tokens            EmailToken[]
+  kyc               KycVerification[]
+  collectionAccount CollectionAccount?
+  wallets           Wallet[]
+  beneficiaries     Beneficiary[]
+  rules             SplitRule[]
+  payins            Payin[]
+  executions        SplitExecution[]
+  transfers         Transfer[]
+  notifications     Notification[]
+  ledgerAccounts    LedgerAccount[]
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  ip        String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+enum EmailTokenType {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
+model EmailToken {
+  id        String         @id @default(cuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      EmailTokenType
+  tokenHash String         @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime       @default(now())
+
+  @@index([userId, type])
+}
+
+model KycVerification {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       String
+  idType         String // BVN | NIN
+  idNumberMasked String // e.g. *******7890 — raw identifier is never stored
+  identityStatus KycStatus @default(IN_PROGRESS)
+  livenessStatus KycStatus @default(NOT_STARTED)
+  status         KycStatus @default(IN_PROGRESS)
+  providerRef    String?
+  failureReason  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([userId])
+}
+
+enum AccountStatus {
+  PENDING
+  ACTIVE
+  FAILED
+}
+
+model CollectionAccount {
+  id            String        @id @default(cuid())
+  userId        String        @unique
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider      String
+  providerRef   String?
+  accountNumber String?
+  accountName   String?
+  bankName      String?
+  status        AccountStatus @default(PENDING)
+  failureReason String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([provider, accountNumber])
+}
+
+// ---------- Ledger ----------
+
+enum LedgerAccountType {
+  USER_SALARY // liability: salary funds PaySplit holds for the user
+  USER_WALLET // liability: wallet funds held for the user
+  PROVIDER_CASH // asset: money held at the payment provider
+  TRANSFERS_IN_FLIGHT // liability: committed to an external transfer, not yet settled
+}
+
+model LedgerAccount {
+  id        String            @id @default(cuid())
+  type      LedgerAccountType
+  currency  String            @default("NGN")
+  userId    String?
+  user      User?             @relation(fields: [userId], references: [id])
+  systemKey String?           @unique // e.g. "PROVIDER_CASH:NGN"
+  name      String
+  createdAt DateTime          @default(now())
+
+  entries LedgerEntry[]
+  wallet  Wallet?
+
+  @@index([userId, type])
+}
+
+enum LedgerTxnType {
+  SALARY_IN
+  WALLET_ALLOCATION
+  TRANSFER_OUT
+  TRANSFER_SETTLED
+  TRANSFER_REVERSAL
+  WALLET_TO_SALARY
+}
+
+model LedgerTransaction {
+  id          String        @id @default(cuid())
+  reference   String        @unique // idempotency: one ledger txn per business event
+  type        LedgerTxnType
+  userId      String?
+  description String
+  metadata    Json?
+  createdAt   DateTime      @default(now())
+
+  entries LedgerEntry[]
+
+  @@index([userId, createdAt])
+}
+
+// Immutable. amountMinor is signed: debit > 0, credit < 0. Entries of a txn sum to 0.
+model LedgerEntry {
+  id            String            @id @default(cuid())
+  transactionId String
+  transaction   LedgerTransaction @relation(fields: [transactionId], references: [id])
+  accountId     String
+  account       LedgerAccount     @relation(fields: [accountId], references: [id])
+  amountMinor   BigInt
+  currency      String            @default("NGN")
+  createdAt     DateTime          @default(now())
+
+  @@index([accountId])
+  @@index([transactionId])
+}
+
+// ---------- Destinations ----------
+
+model Wallet {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  name            String
+  category        String
+  targetMinor     BigInt?
+  description     String?
+  ledgerAccountId String        @unique
+  ledgerAccount   LedgerAccount @relation(fields: [ledgerAccountId], references: [id])
+  archivedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  rule SplitRule?
+
+  @@index([userId])
+}
+
+model Beneficiary {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id])
+  name           String
+  category       String
+  bankCode       String
+  bankName       String
+  accountNumber  String
+  accountName    String?
+  narration      String?
+  recipientCode  String? // provider transfer-recipient code
+  archivedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  rule      SplitRule?
+  transfers Transfer[]
+
+  @@index([userId])
+}
+
+// ---------- Rules & execution ----------
+
+enum DestinationType {
+  WALLET
+  BENEFICIARY
+}
+
+enum AllocationMethod {
+  FIXED
+  PERCENT
+}
+
+enum RuleStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+}
+
+model SplitRule {
+  id              String           @id @default(cuid())
+  userId          String
+  user            User             @relation(fields: [userId], references: [id])
+  name            String
+  destinationType DestinationType
+  walletId        String?          @unique // one rule per destination
+  wallet          Wallet?          @relation(fields: [walletId], references: [id])
+  beneficiaryId   String?          @unique
+  beneficiary     Beneficiary?     @relation(fields: [beneficiaryId], references: [id])
+  method          AllocationMethod
+  amountMinor     BigInt? // FIXED
+  percentBps      Int? // PERCENT, basis points (1500 = 15.00%)
+  priority        Int // 1 = highest
+  status          RuleStatus       @default(DRAFT)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  items SplitExecutionItem[]
+
+  @@index([userId, status])
+}
+
+enum PayinStatus {
+  PENDING
+  CONFIRMED
+}
+
+model Payin {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id])
+  provider    String
+  providerRef String
+  amountMinor BigInt
+  currency    String      @default("NGN")
+  status      PayinStatus @default(PENDING)
+  source      String // WEBHOOK | ADMIN_TEST
+  initiatedBy String? // admin user id for test pay-ins
+  receivedAt  DateTime    @default(now())
+  createdAt   DateTime    @default(now())
+
+  executions SplitExecution[]
+
+  @@unique([provider, providerRef]) // duplicate provider events cannot create duplicate pay-ins
+  @@index([userId, receivedAt])
+}
+
+enum ExecutionTrigger {
+  AUTO
+  MANUAL
+}
+
+enum ExecutionStatus {
+  PENDING
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+model SplitExecution {
+  id              String           @id @default(cuid())
+  userId          String
+  user            User             @relation(fields: [userId], references: [id])
+  payinId         String?
+  payin           Payin?           @relation(fields: [payinId], references: [id])
+  trigger         ExecutionTrigger
+  idempotencyKey  String           @unique // "auto:<payinId>" or "manual:<userId>:<client key>"
+  baseMinor       BigInt // percentage base
+  availableMinor  BigInt // salary funds available at start
+  allocatedMinor  BigInt           @default(0)
+  remainingMinor  BigInt           @default(0)
+  status          ExecutionStatus  @default(PENDING)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  items SplitExecutionItem[]
+
+  @@index([userId, createdAt])
+}
+
+enum ItemStatus {
+  SUCCESS
+  PENDING
+  FAILED
+  SKIPPED
+}
+
+// Snapshot of each rule at execution time — survives rule/destination edits and deletes.
+model SplitExecutionItem {
+  id              String           @id @default(cuid())
+  executionId     String
+  execution       SplitExecution   @relation(fields: [executionId], references: [id])
+  ruleId          String?
+  rule            SplitRule?       @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  ruleName        String
+  destinationType DestinationType
+  destinationId   String
+  destinationName String
+  method          AllocationMethod
+  ruleValue       String // "₦50,000" or "15%"
+  priority        Int
+  requestedMinor  BigInt
+  allocatedMinor  BigInt           @default(0)
+  status          ItemStatus
+  skipReason      String?
+  transferId      String?          @unique
+  transfer        Transfer?        @relation(fields: [transferId], references: [id])
+
+  @@index([executionId])
+}
+
+enum TransferStatus {
+  PENDING
+  RETRYING
+  SUCCESS
+  FAILED
+  REVERSED
+}
+
+model Transfer {
+  id            String         @id @default(cuid())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id])
+  beneficiaryId String
+  beneficiary   Beneficiary    @relation(fields: [beneficiaryId], references: [id])
+  amountMinor   BigInt
+  currency      String         @default("NGN")
+  reference     String         @unique // idempotency reference sent to the provider
+  provider      String
+  providerCode  String?
+  status        TransferStatus @default(PENDING)
+  attempts      Int            @default(0)
+  lastError     String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  item SplitExecutionItem?
+
+  @@index([status, updatedAt])
+  @@index([userId, createdAt])
+}
+
+// ---------- Cross-cutting ----------
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  type      String
+  title     String
+  body      String
+  dedupeKey String    @unique
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  targetType String?
+  targetId   String?
+  ip         String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId, createdAt])
+}
+
+model WebhookEvent {
+  id          String    @id @default(cuid())
+  provider    String
+  eventId     String
+  type        String
+  payload     Json
+  processedAt DateTime?
+  error       String?
+  createdAt   DateTime  @default(now())
+
+  @@unique([provider, eventId])
+}
+
+// Fixed-window rate limiting shared across serverless instances.
+model RateLimit {
+  key         String   @id // "<bucket>:<identifier>:<windowStart>"
+  count       Int      @default(0)
+  expiresAt   DateTime
+
+  @@index([expiresAt])
+}
