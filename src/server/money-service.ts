@@ -21,8 +21,9 @@ export async function resolvePayinUser(hint: { txRef?: string; email?: string; a
   const fromRef = hint.txRef?.match(/^salary-([a-z0-9]+)-/)?.[1];
   if (fromRef) return prisma.user.findUnique({ where: { id: fromRef } });
   if (hint.accountNumber) {
-    const acct = await prisma.collectionAccount.findFirst({ where: { accountNumber: hint.accountNumber }, include: { user: true } });
-    if (acct) return acct.user;
+    // Only trust the account number when it identifies exactly one user (the sandbox reuses numbers).
+    const accts = await prisma.collectionAccount.findMany({ where: { accountNumber: hint.accountNumber }, include: { user: true }, take: 2 });
+    if (accts.length === 1) return accts[0].user;
   }
   if (hint.email) return prisma.user.findUnique({ where: { email: hint.email.toLowerCase() } });
   return null;

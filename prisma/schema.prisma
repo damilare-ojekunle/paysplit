@@ -133,7 +133,7 @@ model CollectionAccount {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  @@unique([provider, accountNumber])
+  @@index([provider, accountNumber]) // not unique: the Flutterwave sandbox reuses one account number
 }
 
 // ---------- Ledger ----------

@@ -4,7 +4,7 @@ PaySplit automatically splits an incoming salary into savings wallets and bank t
 
 Built for the Talent Nation Full Stack Engineer assessment. All integrations are real sandboxes: **Flutterwave** (collection accounts, pay-ins, transfers, webhooks), **Dojah** (BVN/NIN + selfie liveness) and **Brevo** (transactional email). No real money moves.
 
-- Live app: `<add Vercel URL>`
+- Live app: https://paysplit-sigma.vercel.app
 - Demo video: `<add link>`
 - Why each tool was chosen: [docs/TOOL-CHOICES.md](docs/TOOL-CHOICES.md)
 
